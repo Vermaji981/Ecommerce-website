@@ -1,0 +1,13 @@
+export { default as bag } from './bag.avif';
+export { default as headphone } from './headphone.avif';
+export { default as heaphone2 } from './headphone2.avif';
+export { default as redshoes } from './redshoes.avif';
+export { default as red } from './red.webp';
+export { default as pumashoes } from './pumashoes.avif';
+export { default as samsunglap } from './samsunglap.avif';
+export { default as shoes } from './shoe.avif';
+export { default as simple } from './simple.avif';
+export { default as simplewatch } from './simplewatch.avif';
+export { default as sunglass } from './sunglass.avif';
+export { default as toycar } from './toycar.avif';
+export { default as smartwatch } from './smartwatch.avif';

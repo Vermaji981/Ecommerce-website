@@ -1,0 +1,791 @@
+(function () {
+  // Helper function to get the base URL of the currently executing script
+  function getScriptBaseUrl() {
+    // Check for currentScript first (modern browsers)
+    if (document.currentScript && document.currentScript.src) {
+      try {
+        const scriptUrl = new URL(document.currentScript.src);
+        return scriptUrl.origin; // e.g., 'https://yourserver.com'
+      } catch (e) {
+        console.error("WhatsApp Widget: Could not parse currentScript URL.", e);
+      }
+    }
+    // Fallback for older browsers: find the script tag by a known part of its name
+    const scripts = document.getElementsByTagName('script');
+    const scriptName = '/whatsapp-widget.js'; // The name of this script file
+    const currentScript = Array.from(scripts).find(script => script.src && script.src.includes(scriptName));
+
+    if (currentScript && currentScript.src) {
+      try {
+        const scriptUrl = new URL(currentScript.src);
+        return scriptUrl.origin;
+      } catch (e) {
+        console.error("WhatsApp Widget: Could not parse script URL from fallback.", e);
+        return null;
+      }
+    }
+    console.error("WhatsApp Widget: Could not find the script tag.");
+    return null; // Fallback or error handling needed
+  }
+
+  // UTM parameter names to track
+  const UTM_PARAMS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+  const UTM_STORAGE_KEY = 'wa_widget_utm';
+  const UTM_SESSION_KEY = 'wa_widget_session_id';
+
+  // Capture UTM parameters from URL and store in sessionStorage
+  function captureUtmParams() {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const utmData = {};
+      let hasUtm = false;
+
+      UTM_PARAMS.forEach(param => {
+        const value = urlParams.get(param);
+        if (value) {
+          utmData[param] = value;
+          hasUtm = true;
+        }
+      });
+
+      // Also capture landing page and referrer on first visit
+      if (hasUtm) {
+        utmData.landing_page = window.location.href.split('?')[0]; // URL without query params
+        utmData.referrer = document.referrer || null;
+        utmData.captured_at = new Date().toISOString();
+        sessionStorage.setItem(UTM_STORAGE_KEY, JSON.stringify(utmData));
+        // Clear any existing session ID so we create a new one
+        sessionStorage.removeItem(UTM_SESSION_KEY);
+      }
+
+      return utmData;
+    } catch (e) {
+      console.error('WhatsApp Widget: Error capturing UTM params', e);
+      return {};
+    }
+  }
+
+  // Get stored UTM data
+  function getStoredUtmData() {
+    try {
+      const stored = sessionStorage.getItem(UTM_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  // Get or create UTM session ID via API
+  async function getOrCreateUtmSessionId(baseUrl) {
+    try {
+      // Check if we already have a session ID
+      const existingSessionId = sessionStorage.getItem(UTM_SESSION_KEY);
+      if (existingSessionId) {
+        return existingSessionId;
+      }
+
+      const utmData = getStoredUtmData();
+      // Check if at least one UTM param exists
+      if (!utmData.utm_source && !utmData.utm_medium && !utmData.utm_campaign && !utmData.utm_term && !utmData.utm_content) {
+        return null;
+      }
+
+      // Call API to create session
+      const response = await fetch(`${baseUrl}/api/whatsapp/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(utmData)
+      });
+
+      if (!response.ok) {
+        console.error('WhatsApp Widget: Failed to create UTM session');
+        return null;
+      }
+
+      const data = await response.json();
+      if (data.sessionId) {
+        sessionStorage.setItem(UTM_SESSION_KEY, data.sessionId);
+        return data.sessionId;
+      }
+      return null;
+    } catch (e) {
+      console.error('WhatsApp Widget: Error creating UTM session', e);
+      return null;
+    }
+  }
+
+  // Build WhatsApp URL with session ID
+  function buildWhatsAppUrl(phoneNumber, prefilledMessage, sessionId) {
+    let url = `https://wa.me/${phoneNumber}`;
+    let message = prefilledMessage || '';
+
+    if (sessionId) {
+      message = message ? `Reference ID: #${sessionId}\n\n${message}` : `Reference ID: #${sessionId}`;
+    }
+
+    if (message) {
+      url += `?text=${encodeURIComponent(message)}`;
+    }
+    return url;
+  }
+
+  // Capture UTMs on script load
+  captureUtmParams();
+
+  function initWhatsAppWidget({
+    phoneNumber,
+    position = 'right', // 'left' or 'right'
+    themeColor = '#006954', // Default theme color - WhatsApp green
+    logoUrl,
+
+    // UTM tracking options
+    trackUtm = false, // Enable UTM tracking
+    prefilledMessage = '', // Optional prefilled message for WhatsApp
+
+    buttonText = 'Chat on WhatsApp',
+    welcomeMessage = 'Need help? Chat with us on WhatsApp!',
+    bottomPadding = 20, // Distance from bottom in pixels
+    responseTime = 'Team typically replies in a few minutes', // Default response time text
+
+    ctaIconSvgs = { // SVGs for the CTA button
+      black: `<?xml version="1.0" encoding="UTF-8"?><svg width="16px" height="16px" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 1.25C17.9371 1.25 22.75 6.06294 22.75 12C22.75 17.9371 17.9371 22.75 12 22.75C10.1409 22.75 8.39016 22.2775 6.86335 21.4455L2.12395 22.2397C1.88692 22.2794 1.6452 22.2031 1.47391 22.0345C1.30261 21.8659 1.2225 21.6255 1.25845 21.3878L2.05878 16.0977C1.53735 14.8339 1.25001 13.4496 1.25001 12C1.25001 6.06294 6.06295 1.25 12 1.25ZM7.94309 6.7002C7.20774 6.7002 6.599 7.32056 6.71374 8.08595C6.929 9.52188 7.56749 12.1676 9.46536 14.0799C11.4494 16.0789 14.2876 16.9343 15.8259 17.2715C16.6211 17.4459 17.3 16.8158 17.3 16.0387V14.2151C17.3 14.0909 17.2235 13.9796 17.1076 13.935L15.1475 13.1825C15.0949 13.1623 15.0377 13.1573 14.9824 13.1681L13.0048 13.5542C11.7304 12.894 10.958 12.1532 10.4942 11.0387L10.867 9.02365C10.8769 8.97021 10.8721 8.91508 10.8531 8.86416L10.1182 6.89529C10.0744 6.77797 9.96233 6.7002 9.83711 6.7002H7.94309Z" fill="currentColor"></path></svg>`,
+      white: `<?xml version="1.0" encoding="UTF-8"?><svg width="16px" height="16px" viewBox="0 0 24 24" stroke-width="1.5" fill="none" xmlns="http://www.w3.org/2000/svg" color="#ffffff"><path d="M22 12C22 17.5228 17.5228 22 12 22C10.1786 22 8.47087 21.513 7 20.6622L2 21.5L2.83209 16C2.29689 14.7751 2 13.4222 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M12.9604 13.8683L15.0399 13.4624L17 14.2149V16.0385C17 16.6449 16.4783 17.1073 15.8901 16.9783C14.3671 16.6444 11.5997 15.8043 9.67826 13.8683C7.84859 12.0248 7.22267 9.45734 7.01039 8.04128C6.92535 7.47406 7.3737 7 7.94306 7H9.83707L10.572 8.96888L10.1832 11.0701" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>`
+    },
+    closeIconSvg = `<?xml version="1.0" encoding="UTF-8"?><svg width="24px" height="24px" stroke-width="1.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" color="#000000"><path d="M6.75827 17.2426L12.0009 12M17.2435 6.75736L12.0009 12M12.0009 12L6.75827 6.75736M12.0009 12L17.2435 17.2426" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>`
+  }) {
+    if (!phoneNumber) {
+      console.error("WhatsApp Widget: Phone number is required.");
+      return;
+    }
+
+    // Simple validation for hex color
+    const isValidHex = /^#([0-9A-F]{3}){1,2}$/i.test(themeColor);
+    const finalThemeColor = isValidHex ? themeColor : '#006954'; // Fallback to WhatsApp green
+    
+    // Create a slightly darker version of the theme color for hover states
+    const darkerThemeColor = adjustColorBrightness(finalThemeColor, -15); // 15% darker
+    
+    // Determine if we should use black or white text based on the theme color's luminance
+    const luminance = calculateLuminance(finalThemeColor);
+    const contrastTextColor = luminance > 0.5 ? '#000000' : '#ffffff'; // Use black for light backgrounds, white for dark backgrounds
+    const ctaIconSvg = luminance > 0.5 ? (ctaIconSvgs.black || '') : (ctaIconSvgs.white || ''); // Choose SVG based on contrast
+
+    const styleTag = `
+      <style>
+        :root {
+          --wa-theme-primary: ${finalThemeColor};
+          --wa-theme-darker: ${darkerThemeColor};
+          --wa-theme-lighter: ${adjustColorBrightness(finalThemeColor, 15)}; /* 15% lighter */
+          --wa-whatsapp-green: #25D366;
+          --wa-whatsapp-green-darker: #1ea952;
+          --wa-text-primary: #0a2540;
+          --wa-text-secondary: #425466;
+          --wa-text-light: #687792;
+          --wa-white: #ffffff;
+          --wa-black: #000000;
+          --wa-contrast-text: ${contrastTextColor};
+          --wa-border-color: ${finalThemeColor}; /* Changed to theme color */
+          --wa-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+          --wa-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+          --wa-shadow-lg: 0 6px 24px rgba(0, 0, 0, 0.12);
+          --wa-radius-sm: 6px;
+          --wa-radius-md: 8px;
+          --wa-radius-lg: 12px;
+          --wa-radius-full: 9999px;
+          --wa-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif !important;
+        }
+        
+        @keyframes wa-pulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+          100% { transform: scale(1); }
+        }
+        
+        @keyframes wa-spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes wa-bounce-in {
+          0% { 
+            transform: scale(0.3) rotate(-180deg);
+            opacity: 0;
+          }
+          50% { 
+            transform: scale(1.1) rotate(-90deg);
+            opacity: 0.8;
+          }
+          100% { 
+            transform: scale(1) rotate(0deg);
+            opacity: 1;
+          }
+        }
+        
+        @keyframes wa-bounce-out {
+          0% { 
+            transform: scale(1) rotate(0deg);
+            opacity: 1;
+          }
+          50% { 
+            transform: scale(1.1) rotate(90deg);
+            opacity: 0.8;
+          }
+          100% { 
+            transform: scale(0.3) rotate(180deg);
+            opacity: 0;
+          }
+        }
+
+        #whatsapp-widget-container {
+          position: fixed !important;
+          bottom: ${bottomPadding}px !important;
+          ${position}: 20px !important;
+          z-index: 995 !important;
+          display: flex !important;
+          flex-direction: column !important;
+          gap: 12px !important;
+          align-items: ${position === 'right' ? 'flex-end' : 'flex-start'} !important;
+          font-family: var(--wa-font-family);
+          font-size: 14px !important;
+          line-height: 1.5 !important;
+          box-sizing: border-box !important;
+        }
+
+        #whatsapp-trigger-button {
+          background-color: var(--wa-theme-primary) !important; /* Use theme color */
+          color: var(--wa-contrast-text) !important; /* Use contrast text color */
+          width: 56px !important;
+          height: 56px !important;
+          border-radius: var(--wa-radius-full) !important;
+          border: 2px solid var(--wa-border-color) !important; /* Changed to theme color with larger width */
+          cursor: pointer !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          box-shadow: var(--wa-shadow-md) !important;
+          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important; /* Improved animation curve */
+          position: relative !important;
+          overflow: hidden !important;
+          z-index: 990 !important;
+        }
+
+        #whatsapp-trigger-button:hover {
+          transform: translateY(-3px) !important;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.16) !important;
+          border-color: var(--wa-theme-lighter) !important;
+          animation: wa-pulse 2s infinite ease-in-out !important;
+        }
+
+        #whatsapp-trigger-button img,
+        #whatsapp-trigger-button svg {
+          display: block !important; /* Ensure image displays */
+          width: 28px !important;
+          height: 28px !important;
+          object-fit: contain !important;
+          transition: transform 0.3s ease !important;
+          filter: none !important; /* Override potential host styles */
+        }
+        
+        #whatsapp-trigger-button .wa-btn-icon {
+          position: absolute !important;
+          top: 50% !important;
+          left: 50% !important;
+          transform: translate(-50%, -50%) !important;
+          transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+        }
+        
+        #whatsapp-trigger-button .wa-btn-icon.whatsapp-icon {
+          opacity: 1 !important;
+          transform: translate(-50%, -50%) scale(1) rotate(0deg) !important;
+        }
+        
+        #whatsapp-trigger-button .wa-btn-icon.close-icon {
+          opacity: 0 !important;
+          transform: translate(-50%, -50%) scale(0.3) rotate(-180deg) !important;
+        }
+        
+        #whatsapp-trigger-button.is-active .wa-btn-icon.whatsapp-icon {
+          opacity: 0 !important;
+          transform: translate(-50%, -50%) scale(0.3) rotate(180deg) !important;
+        }
+        
+        #whatsapp-trigger-button.is-active .wa-btn-icon.close-icon {
+          opacity: 1 !important;
+          transform: translate(-50%, -50%) scale(1) rotate(0deg) !important;
+        }
+        
+        #whatsapp-trigger-button.is-active .wa-btn-icon.close-icon:hover {
+          animation: wa-spin 0.6s ease-in-out !important;
+        }
+
+        #whatsapp-popup {
+          position: relative !important;
+          width: 320px !important;
+          max-width: calc(100vw - 40px) !important;
+          background-color: var(--wa-white) !important;
+          border-radius: var(--wa-radius-lg) !important;
+          box-shadow: var(--wa-shadow-lg) !important;
+          color: var(--wa-text-primary) !important;
+          font-family: var(--wa-font-family);
+          z-index: 10000 !important;
+          overflow: hidden !important;
+          transform-origin: bottom ${position} !important;
+          border: 2px solid var(--wa-border-color) !important; /* Changed to theme color with larger width */
+          display: none;
+          opacity: 0;
+          box-sizing: border-box !important;
+        }
+
+        .whatsapp-popup-content {
+          padding: 20px !important;
+          text-align: left !important;
+          box-sizing: border-box !important;
+          position: relative !important;
+        }
+
+        #whatsapp-close-popup {
+            position: absolute !important;
+            top: 10px !important;
+            right: 10px !important;
+            background: none !important;
+            border: none !important;
+            color: var(--wa-text-secondary) !important;
+            opacity: 0.6 !important;
+            cursor: pointer !important;
+            font-size: 24px !important;
+            padding: 4px !important;
+            line-height: 1 !important;
+            width: 32px !important;
+            height: 32px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            border-radius: var(--wa-radius-sm) !important;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+            font-family: var(--wa-font-family);
+            z-index: 10001 !important;
+        }
+
+        #whatsapp-close-popup:hover {
+            opacity: 1 !important;
+            background-color: rgba(0,0,0,0.05) !important;
+            transform: scale(1.1) !important;
+            animation: wa-spin 0.6s ease-in-out !important;
+        }
+        
+        #whatsapp-close-popup:active {
+            transform: scale(0.95) !important;
+            animation: none !important;
+        }
+
+        .whatsapp-popup-content p {
+            margin: 0 0 8px 0 !important;
+            color: var(--wa-text-secondary) !important;
+            font-size: 15px !important;
+            line-height: 1.6 !important;
+            font-family: var(--wa-font-family);
+            font-weight: 500 !important;
+            letter-spacing: -0.01em !important;
+        }
+        
+        .whatsapp-popup-content .response-time {
+            font-size: 11px !important;
+            color: var(--wa-text-light) !important;
+            margin: 0 0 25px 0 !important; /* Increased from 20px to 25px to add space above Start Chat button */
+            display: flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+        }
+        
+        .whatsapp-popup-content .response-time::before {
+            content: "" !important;
+            display: inline-block !important;
+            width: 8px !important;
+            height: 8px !important;
+            background-color: var(--wa-whatsapp-green) !important;
+            border-radius: 50% !important;
+        }
+
+        .whatsapp-cta-button {
+          display: block !important;
+          width: 100% !important;
+          background-color: var(--wa-theme-primary) !important; /* Use theme color */
+          color: var(--wa-contrast-text) !important; /* Use contrast text color */
+          padding: 14px 20px !important; /* Slightly bigger padding */
+          border: none !important;
+          border-radius: var(--wa-radius-md) !important;
+          text-align: center !important;
+          font-weight: 600 !important;
+          font-size: 14px !important;
+          cursor: pointer !important;
+          text-decoration: none !important;
+          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important; /* Improved animation curve */
+          box-sizing: border-box !important;
+          letter-spacing: -0.01em !important;
+          font-family: var(--wa-font-family);
+          display: inline-flex !important; /* Align icon and text */
+          align-items: center !important;
+          justify-content: center !important; /* Center content */
+          gap: 8px !important; /* Space between icon and text */
+          box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important; /* Add subtle shadow */
+        }
+
+        .whatsapp-cta-button svg {
+            width: 16px !important; /* Adjust size as needed */
+            height: 16px !important;
+            display: inline-block !important;
+            vertical-align: middle !important;
+            /* fill/stroke is set to currentColor by SVG */
+        }
+        
+        .whatsapp-cta-button span {
+            font-family: var(--wa-font-family);
+            font-weight: 600 !important;
+            font-size: 14px !important;
+        }
+
+        .whatsapp-cta-button:hover {
+          background-color: var(--wa-theme-darker) !important;
+          transform: translateY(-3px) scale(1.02) !important;
+          box-shadow: 0 6px 20px rgba(0,0,0,0.18) !important;
+        }
+        
+        .whatsapp-cta-button:active {
+          transform: translateY(-1px) scale(0.98) !important;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.12) !important;
+          transition-duration: 0.1s !important;
+        }
+
+        .whatsapp-powered-by {
+          text-align: center !important;
+          padding: 8px 20px !important;
+          font-size: 10px !important;
+          color: var(--wa-text-light) !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          font-family: var(--wa-font-family);
+          border-top: 1px solid rgba(0, 0, 0, 0.05) !important;
+          box-sizing: border-box !important;
+          /* Defensive resets */
+          margin: 0 !important;
+          background: transparent !important;
+          border-bottom: none !important;
+          border-left: none !important;
+          border-right: none !important;
+          line-height: 1.5 !important;
+          letter-spacing: normal !important;
+          text-transform: none !important;
+          float: none !important;
+          width: 100% !important;
+          height: auto !important;
+          gap: 0 !important;
+        }
+
+        .whatsapp-powered-by a {
+          color: var(--wa-text-light) !important;
+          text-decoration: none !important;
+          padding-bottom: 2px !important;
+          font-weight: 500 !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          font-family: var(--wa-font-family) !important;
+          transition: all 0.2s ease !important;
+          /* Defensive resets */
+          font-size: 10px !important;
+          line-height: 1.5 !important;
+          letter-spacing: normal !important;
+          text-transform: none !important;
+          background: none !important;
+          border: none !important;
+          margin: 0 !important;
+          padding-top: 0 !important;
+          padding-left: 0 !important;
+          padding-right: 0 !important;
+          cursor: pointer !important;
+          box-shadow: none !important;
+          gap: 0 !important;
+        }
+
+        .whatsapp-powered-by a:hover {
+          color: var(--wa-text-secondary) !important;
+          transform: translateY(-1px) !important;
+        }
+
+        .whatsapp-powered-by img {
+          height: 14px !important;
+          margin-left: 4px !important;
+          margin-top: 2px !important;
+          /* Defensive resets */
+          width: auto !important;
+          display: inline-block !important;
+          vertical-align: middle !important;
+          border: none !important;
+          padding: 0 !important;
+          margin-right: 0 !important;
+          margin-bottom: 0 !important;
+          background: none !important;
+          box-shadow: none !important;
+          max-width: none !important;
+          max-height: none !important;
+          opacity: 1 !important;
+          transform: none !important;
+          filter: none !important;
+        }
+
+        /* Basic Responsive */
+         @media (max-width: 360px) {
+             #whatsapp-popup {
+                 width: calc(100vw - 40px) !important;
+             }
+             #whatsapp-widget-container {
+                 ${position}: 0px !important;
+                 width: 100% !important;
+                 padding: 0 20px !important;
+                 box-sizing: border-box !important;
+                 align-items: ${position === 'right' ? 'flex-end' : 'flex-start'} !important;
+             }
+         }
+      </style>
+    `;
+
+    // --- HTML Elements ---
+    const widgetContainer = document.createElement("div");
+    widgetContainer.id = "whatsapp-widget-container";
+
+    // Sanitize phone number: remove common chars except '+' at the start
+    const sanitizedPhoneNumber = phoneNumber.replace(/[^0-9+]/g, '');
+
+    const baseUrl = getScriptBaseUrl();
+    if (!baseUrl) {
+      console.error("WhatsApp Widget: Could not determine base URL. Logo might not load correctly.");
+    }
+
+    const hardcodedPoweredByText = 'Powered by';
+    const hardcodedPoweredByLogoUrl = baseUrl ? `${baseUrl}/logo.svg` : '/logo.svg';
+    const hardcodedPoweredByUrl = 'https://sagepilot.ai';
+    const poweredByContent = `${hardcodedPoweredByText} <img src="${hardcodedPoweredByLogoUrl}" alt="Logo">`;
+
+    const hardcodedLogoUrl = 'https://assets.app.sagepilot.ai/logos/whatsapp.png';
+    const triggerLogoUrl = (typeof logoUrl === 'string' && logoUrl.trim()) ? logoUrl : hardcodedLogoUrl;
+
+    // Process the close icon SVG based on contrast
+    const processedCloseIconSvg = closeIconSvg
+      .replace('color="#000000"', `color="${contrastTextColor}"`)
+      .replace(/stroke="currentColor"/g, `stroke="${contrastTextColor}"`);
+
+    // Build initial WhatsApp URL (without UTM - will be updated dynamically)
+    const initialWhatsappUrl = buildWhatsAppUrl(sanitizedPhoneNumber, prefilledMessage, null);
+
+    widgetContainer.innerHTML = `
+      <div id="whatsapp-popup">
+          <div class="whatsapp-popup-content">
+              <p>${welcomeMessage}</p>
+              <div class="response-time">${responseTime}</div>
+              <a id="whatsapp-cta-link" href="${initialWhatsappUrl}" target="_blank" rel="noopener noreferrer" class="whatsapp-cta-button">
+                  ${ctaIconSvg}
+                  <span>Start Chat</span>
+              </a>
+          </div>
+          <div class="whatsapp-powered-by">
+              <a href="${hardcodedPoweredByUrl}" target="_blank" rel="noopener noreferrer">
+                  ${poweredByContent}
+              </a>
+          </div>
+      </div>
+      <button id="whatsapp-trigger-button" aria-label="Open WhatsApp Chat">
+        <div class="wa-btn-icon whatsapp-icon">
+          <img src="${triggerLogoUrl}" onerror="this.onerror=null;this.src='${hardcodedLogoUrl}';" alt="WhatsApp">
+        </div>
+        <div class="wa-btn-icon close-icon">
+          ${processedCloseIconSvg}
+        </div>
+      </button>
+    `;
+
+    // Pre-fetch UTM session ID if tracking is enabled
+    if (trackUtm && baseUrl) {
+      getOrCreateUtmSessionId(baseUrl).then(sessionId => {
+        // Update the CTA link with the session ID
+        const ctaLink = document.getElementById("whatsapp-cta-link");
+        if (ctaLink && sessionId) {
+          ctaLink.href = buildWhatsAppUrl(sanitizedPhoneNumber, prefilledMessage, sessionId);
+        }
+      });
+    }
+
+    // --- Inject into DOM ---
+    document.head.insertAdjacentHTML("beforeend", styleTag);
+    document.body.appendChild(widgetContainer);
+
+    // Add Inter font if not already present
+    if (!document.getElementById('inter-font')) {
+      const fontLink = document.createElement('link');
+      fontLink.id = 'inter-font';
+      fontLink.rel = 'stylesheet';
+      fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
+      document.head.appendChild(fontLink);
+    }
+
+    // --- Get Elements ---
+    const triggerButton = document.getElementById("whatsapp-trigger-button");
+    const popup = document.getElementById("whatsapp-popup");
+    const ctaLink = document.getElementById("whatsapp-cta-link");
+
+    // --- Event Listeners ---
+    const openPopup = () => {
+        // Set higher z-index for trigger button when opening
+        triggerButton.style.zIndex = "10001";
+
+        // Set initial display to block first
+        popup.style.display = 'block';
+        
+        // Force reflow for animation to work properly
+        void popup.offsetWidth;
+        
+        // Animate opening with more sophisticated spring-like animation
+        const animation = popup.animate([
+            { 
+                transform: 'scale(0.7) translateY(20px)', 
+                opacity: 0,
+                filter: 'blur(4px)'
+            },
+            { 
+                transform: 'scale(1.02) translateY(-2px)', 
+                opacity: 0.9,
+                filter: 'blur(1px)',
+                offset: 0.7
+            },
+            { 
+                transform: 'scale(1) translateY(0px)', 
+                opacity: 1,
+                filter: 'blur(0px)'
+            }
+        ], {
+            duration: 450,
+            easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+            fill: 'forwards'
+        });
+        
+        // Update popup state after animation
+        animation.onfinish = () => {
+            popup.style.opacity = '1';
+        };
+        
+        // Toggle button icon
+        triggerButton.classList.add('is-active');
+    };
+
+    const closePopup = () => {
+        // Reset trigger button z-index to lower value when closing
+        triggerButton.style.zIndex = "990";
+        
+        // Animate closing with smooth fade and scale
+        const animation = popup.animate([
+            { 
+                transform: 'scale(1) translateY(0px)', 
+                opacity: 1,
+                filter: 'blur(0px)'
+            },
+            { 
+                transform: 'scale(0.95) translateY(10px)', 
+                opacity: 0.3,
+                filter: 'blur(2px)',
+                offset: 0.3
+            },
+            { 
+                transform: 'scale(0.8) translateY(20px)', 
+                opacity: 0,
+                filter: 'blur(4px)'
+            }
+        ], {
+            duration: 350,
+            easing: 'cubic-bezier(0.4, 0, 0.2, 1)',
+            fill: 'forwards'
+        });
+        
+        // Toggle button icon
+        triggerButton.classList.remove('is-active');
+        
+        // Hide popup after animation completes
+        animation.onfinish = () => {
+            popup.style.display = 'none';
+            popup.style.opacity = '0';
+        };
+    };
+
+    // Click event for the main button
+    triggerButton.addEventListener("click", () => {
+        const computedStyle = window.getComputedStyle(popup);
+        const isVisible = computedStyle.display !== 'none';
+        
+        if (isVisible) {
+            closePopup();
+        } else {
+            openPopup();
+        }
+    });
+
+    // Close popup if clicked outside
+    document.addEventListener('click', (event) => {
+        if (!widgetContainer.contains(event.target) && 
+            window.getComputedStyle(popup).display !== 'none') {
+            closePopup();
+        }
+    });
+
+    // Close popup on Escape key
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && 
+            window.getComputedStyle(popup).display !== 'none') {
+            closePopup();
+        }
+    });
+  }
+  
+  // Helper function to adjust color brightness
+  function adjustColorBrightness(hex, percent) {
+    // Validate hex string
+    hex = String(hex).replace(/[^0-9a-f]/gi, '');
+    if (hex.length < 6) {
+      hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+    
+    // Convert to decimal and adjust
+    let rgb = "#";
+    for (let i = 0; i < 3; i++) {
+      let colorComponent = parseInt(hex.substr(i * 2, 2), 16);
+      colorComponent = Math.round(Math.min(Math.max(0, colorComponent + (colorComponent * percent / 100)), 255));
+      rgb += colorComponent.toString(16).padStart(2, '0');
+    }
+    
+    return rgb;
+  }
+  
+  // Calculate relative luminance (for WCAG accessibility standards)
+  function calculateLuminance(hex) {
+    // Normalize hex to 6 characters
+    hex = String(hex).replace(/[^0-9a-f]/gi, '');
+    if (hex.length < 6) {
+      hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+    
+    // Convert hex to RGB
+    const r = parseInt(hex.substr(0, 2), 16) / 255;
+    const g = parseInt(hex.substr(2, 2), 16) / 255;
+    const b = parseInt(hex.substr(4, 2), 16) / 255;
+    
+    // Calculate relative luminance using the formula from WCAG 2.0
+    const R = r <= 0.03928 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4);
+    const G = g <= 0.03928 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4);
+    const B = b <= 0.03928 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4);
+    
+    // The luminance formula gives more weight to green as humans perceive green as brighter
+    return 0.2126 * R + 0.7152 * G + 0.0722 * B;
+  }
+
+  // Expose the init function to the global scope
+  window.WhatsAppWidget = {
+    init: initWhatsAppWidget,
+  };
+})();
