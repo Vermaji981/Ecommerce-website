@@ -91,6 +91,16 @@ const server = app.listen(PORT, () => {
   console.log(`[My E-commerce Server] Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
 });
 
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`[My E-commerce Server Error]: Port ${PORT} is already in use.`);
+    console.error(`[Fix]: Close existing server terminals or run 'npm run clean' to free port ${PORT}.`);
+  } else {
+    console.error(`[My E-commerce Server Error]: ${err.message}`);
+  }
+  process.exit(1);
+});
+
 // Handle Unhandled Promise Rejections
 process.on('unhandledRejection', (err, promise) => {
   console.error(`[My E-commerce Server Error]: ${err.message}`);

@@ -5,6 +5,7 @@
   "scripts": {
     "frontend": "npm start --prefix frontend",
     "backend": "npm start --prefix backend",
+    "clean": "npx kill-port 5000 3000",
     "dev": "npx concurrently \"npm run backend\" \"npm run frontend\""
   },
   "devDependencies": {
