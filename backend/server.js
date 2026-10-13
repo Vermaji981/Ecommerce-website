@@ -109,3 +109,4 @@ process.on('unhandledRejection', (err, promise) => {
 });
 
 module.exports = app;
+module.exports.app = app;

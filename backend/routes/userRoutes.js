@@ -9,7 +9,9 @@ const {
   deleteAddress,
   getUsers,
   getUserById,
-  updateUserStatus
+  updateUserStatus,
+  updateUserRole,
+  deleteUser
 } = require('../controllers/userController');
 
 // Customer Protected Routes
@@ -22,5 +24,7 @@ router.delete('/addresses/:addressId', protect, deleteAddress);
 router.get('/', protect, adminOnly, getUsers);
 router.get('/:id', protect, adminOnly, getUserById);
 router.put('/:id/status', protect, adminOnly, updateUserStatus);
+router.put('/:id/role', protect, adminOnly, updateUserRole);
+router.delete('/:id', protect, adminOnly, deleteUser);
 
 module.exports = router;

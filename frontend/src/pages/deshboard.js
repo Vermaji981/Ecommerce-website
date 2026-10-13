@@ -167,17 +167,18 @@ function Deshboard() {
               <div 
                 key={catName} 
                 style={{
-                  background: "var(--bg-card-hover, rgba(99, 102, 241, 0.08))",
-                  border: "1px solid var(--border-color, #e2e8f0)",
-                  borderRadius: "8px",
-                  padding: "0.5rem 1rem",
+                  background: "#f8fafc",
+                  border: "1.5px solid #e2e8f0",
+                  borderRadius: "10px",
+                  padding: "0.55rem 1.1rem",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.5rem",
-                  fontSize: "0.9rem"
+                  gap: "0.6rem",
+                  fontSize: "0.9rem",
+                  boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)"
                 }}
               >
-                <span style={{ fontWeight: 600, color: "var(--text-main, #1e293b)" }}>{catName}:</span>
+                <span style={{ fontWeight: 700, color: "#0f172a" }}>{catName}:</span>
                 <span className="badge badge-primary" style={{ fontWeight: 700 }}>{count} items</span>
               </div>
             ))}

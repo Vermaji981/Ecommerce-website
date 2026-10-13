@@ -1,9 +1,7 @@
-const { app } = require('./server');
+const serverModule = require('./server');
+const app = serverModule.app || serverModule;
 
-const port = process.env.PORT || 5001;
+module.exports = app;
 
-app.listen(port, () => {
-  console.log(`Server Started on port ${port}`);
-});
 
 

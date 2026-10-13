@@ -103,17 +103,34 @@ const CheckoutPayment = () => {
       setTimeout(() => {
         setProcessingStep(3); // Saving to Database (MongoDB)
         
+        const effectiveTotal = cartTotal > 0 ? cartTotal : cartItems.reduce((acc, item) => {
+          const p = Number(item.unitPrice || item.price || item.discountPrice || 0);
+          const q = Number(item.quantity || 1);
+          return acc + (p * q);
+        }, 0);
+
+        const formattedItems = cartItems.map((item) => ({
+          id: String(item.productId || item._id || item.id),
+          productId: String(item.productId || item._id || item.id),
+          name: item.title || item.name || 'Product',
+          title: item.title || item.name || 'Product',
+          price: Number(item.unitPrice || item.price || 0),
+          quantity: Number(item.quantity || 1),
+          image: item.image || ''
+        }));
+
         // Execute payment processing call
         const payload = {
           ...customer,
-          items: cartItems,
-          totalAmount: cartTotal,
+          items: formattedItems,
+          amount: effectiveTotal,
+          totalAmount: effectiveTotal,
           paymentMethod: paymentMethod.toUpperCase()
         };
 
         api.processPayment(payload)
           .then((res) => {
-            if (res.success && res.order) {
+            if (res && res.success && res.order) {
               setProcessingStep(4);
               setTimeout(() => {
                 setIsProcessing(false);
@@ -121,12 +138,12 @@ const CheckoutPayment = () => {
                 clearCart();
               }, 800);
             } else {
-              throw new Error(res.error || 'Payment failed');
+              throw new Error(res?.error || res?.message || 'Payment failed');
             }
           })
           .catch((err) => {
             setIsProcessing(false);
-            setErrorMsg(err.message || 'Payment processing failed. Please try again.');
+            setErrorMsg(err.response?.data?.message || err.message || 'Payment processing failed. Please try again.');
           });
       }, 1000);
     }, 1000);
@@ -465,18 +482,18 @@ const CheckoutPayment = () => {
                   {cartItems.map((item) => (
                     <div key={item._id || item.id} className="d-flex align-items-center mb-2">
                       <img
-                        src={item.image}
-                        alt={item.title}
+                        src={item.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200'}
+                        alt={item.title || item.name || 'Product'}
                         className="rounded me-2"
                         style={{ width: '45px', height: '45px', objectFit: 'cover' }}
                       />
                       <div className="flex-grow-1 me-2 small">
                         <div className="fw-bold text-truncate" style={{ maxWidth: '140px' }}>
-                          {item.title}
+                          {item.title || item.name || 'Product'}
                         </div>
-                        <span className="text-muted">Qty: {item.quantity}</span>
+                        <span className="text-muted">Qty: {item.quantity || 1}</span>
                       </div>
-                      <div className="fw-bold small">{formatPrice(item.price * item.quantity)}</div>
+                      <div className="fw-bold small">{formatPrice(Number(item.unitPrice || item.price || 0) * Number(item.quantity || 1))}</div>
                     </div>
                   ))}
                 </div>

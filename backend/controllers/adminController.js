@@ -15,7 +15,12 @@ exports.getDashboardStats = async (req, res, next) => {
     monthStart.setHours(0, 0, 0, 0);
 
     // Fetch all products for dynamic live calculation
-    const products = await Product.find({}).populate('category', 'name');
+    let products = [];
+    try {
+      products = await Product.find({}).populate({ path: 'category', select: 'name', strictPopulate: false });
+    } catch (e) {
+      products = await Product.find({});
+    }
     const totalProducts = products.length;
 
     // Live Product Calculations: Inventory Value, Total Stock, Category Breakdown
@@ -32,8 +37,10 @@ exports.getDashboardStats = async (req, res, next) => {
       let catName = "General";
       if (typeof p.category === 'object' && p.category !== null && p.category.name) {
         catName = p.category.name;
-      } else if (p.catogries || p.category) {
-        catName = String(p.catogries || p.category);
+      } else if (typeof p.category === 'string' && p.category.trim()) {
+        catName = p.category;
+      } else if (p.catogries) {
+        catName = String(p.catogries);
       }
       categoryBreakdown[catName] = (categoryBreakdown[catName] || 0) + 1;
     });
@@ -44,7 +51,7 @@ exports.getDashboardStats = async (req, res, next) => {
     }).length;
 
     const outOfStockCount = products.filter(p => {
-      const st = p.stock !== undefined && p.stock !== null ? Number(p.stock) : 10;
+      const st = p.stock !== undefined && p.stock !== null ? Number(p.stock) : 0;
       return st === 0;
     }).length;
 
@@ -64,10 +71,17 @@ exports.getDashboardStats = async (req, res, next) => {
       .limit(8);
 
     // Recent Products added list (latest 8)
-    const recentProducts = await Product.find({})
-      .populate('category', 'name')
-      .sort({ createdAt: -1 })
-      .limit(8);
+    let recentProducts = [];
+    try {
+      recentProducts = await Product.find({})
+        .populate({ path: 'category', select: 'name', strictPopulate: false })
+        .sort({ createdAt: -1 })
+        .limit(8);
+    } catch (e) {
+      recentProducts = await Product.find({})
+        .sort({ createdAt: -1 })
+        .limit(8);
+    }
 
     // Orders & Sales calculations
     const totalOrders = await Order.countDocuments({});
@@ -90,10 +104,15 @@ exports.getDashboardStats = async (req, res, next) => {
     );
     const monthlySales = monthlyOrders.reduce((acc, order) => acc + (order.totalAmount || 0), 0);
 
-    const recentOrders = await Order.find({})
-      .populate('user', 'name email')
-      .sort({ createdAt: -1 })
-      .limit(5);
+    let recentOrders = [];
+    try {
+      recentOrders = await Order.find({})
+        .populate({ path: 'user', select: 'name email', strictPopulate: false })
+        .sort({ createdAt: -1 })
+        .limit(5);
+    } catch (e) {
+      recentOrders = await Order.find({}).sort({ createdAt: -1 }).limit(5);
+    }
 
     const statsObj = {
       totalRevenue,
@@ -143,9 +162,14 @@ exports.getDashboardStats = async (req, res, next) => {
 // @access  Private/Admin
 exports.getInventory = async (req, res, next) => {
   try {
-    const products = await Product.find({})
-      .populate('category', 'name')
-      .sort({ stock: 1 }); // Lowest stock first
+    let products = [];
+    try {
+      products = await Product.find({})
+        .populate({ path: 'category', select: 'name', strictPopulate: false })
+        .sort({ stock: 1 });
+    } catch (e) {
+      products = await Product.find({}).sort({ stock: 1 });
+    } // Lowest stock first
 
     const lowStock = products.filter(p => p.stock <= 5 && p.stock > 0);
     const outOfStock = products.filter(p => p.stock === 0);

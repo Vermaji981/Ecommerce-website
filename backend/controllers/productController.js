@@ -76,25 +76,68 @@ exports.getProducts = async (req, res, next) => {
       }
     }
 
+// Helper function to safely resolve categories without CastError
+const resolveCategoriesForProducts = async (products) => {
+  if (!Array.isArray(products) || products.length === 0) return [];
+  
+  const categories = await Category.find({}).lean();
+  const catMap = new Map();
+  categories.forEach(c => {
+    catMap.set(String(c._id), { _id: c._id, name: c.name, slug: c.slug });
+    if (c.slug) catMap.set(c.slug.toLowerCase(), { _id: c._id, name: c.name, slug: c.slug });
+    if (c.name) catMap.set(c.name.toLowerCase(), { _id: c._id, name: c.name, slug: c.slug });
+  });
+
+  return products.map(p => {
+    const doc = p && typeof p.toObject === 'function' ? p.toObject() : { ...p };
+    if (typeof doc.category === 'object' && doc.category !== null && doc.category.name) {
+      return doc;
+    }
+    const catVal = doc.category || doc.catogries;
+    if (catVal) {
+      const found = catMap.get(String(catVal)) || catMap.get(String(catVal).toLowerCase());
+      if (found) {
+        doc.category = found;
+      } else {
+        doc.category = {
+          _id: mongoose.Types.ObjectId.isValid(catVal) ? catVal : undefined,
+          name: typeof catVal === 'string' ? (catVal.charAt(0).toUpperCase() + catVal.slice(1)) : 'General',
+          slug: typeof catVal === 'string' ? catVal.toLowerCase() : 'general'
+        };
+      }
+    } else {
+      doc.category = { name: 'General', slug: 'general' };
+    }
+    return doc;
+  });
+};
+
     const totalProducts = await Product.countDocuments(query);
     const totalPages = Math.ceil(totalProducts / limit);
 
-    const products = await Product.find(query)
-      .populate('category', 'name slug')
+    let products = await Product.find(query)
       .sort(sortOptions)
       .skip(skip)
       .limit(limit);
 
+    try {
+      products = await Product.populate(products, { path: 'category', select: 'name slug', strictPopulate: false });
+    } catch (e) {
+      // Safe fallback if raw populate fails
+    }
+
+    const formattedProducts = await resolveCategoriesForProducts(products);
+
     res.status(200).json({
       success: true,
-      count: products.length,
+      count: formattedProducts.length,
       totalProducts,
       page,
       totalPages,
       limit,
       hasNextPage: page < totalPages,
       hasPreviousPage: page > 1,
-      products
+      products: formattedProducts
     });
   } catch (error) {
     next(error);
@@ -106,13 +149,21 @@ exports.getProducts = async (req, res, next) => {
 // @access  Public
 exports.getProductById = async (req, res, next) => {
   try {
-    const product = await Product.findById(req.params.id).populate('category', 'name slug');
+    let product = null;
+    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+      product = await Product.findById(req.params.id);
+    } else {
+      product = await Product.findOne({ SKU: req.params.id.toUpperCase() });
+    }
+
     if (!product) {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
+
+    const [formatted] = await resolveCategoriesForProducts([product]);
     res.status(200).json({
       success: true,
-      product
+      product: formatted
     });
   } catch (error) {
     next(error);
@@ -221,15 +272,27 @@ exports.updateProduct = async (req, res, next) => {
       req.body.SKU = req.body.SKU.toUpperCase();
     }
 
+    if (req.body.category && !mongoose.Types.ObjectId.isValid(req.body.category)) {
+      const catDoc = await Category.findOne({
+        $or: [
+          { name: new RegExp(`^${req.body.category}$`, 'i') },
+          { slug: String(req.body.category).toLowerCase() }
+        ]
+      });
+      if (catDoc) req.body.category = catDoc._id;
+    }
+
     product = await Product.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true
-    }).populate('category', 'name slug');
+    });
+
+    const [formatted] = await resolveCategoriesForProducts([product]);
 
     res.status(200).json({
       success: true,
       message: 'Product updated successfully',
-      product
+      product: formatted
     });
   } catch (error) {
     next(error);

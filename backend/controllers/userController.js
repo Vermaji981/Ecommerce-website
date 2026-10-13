@@ -193,3 +193,63 @@ exports.updateUserStatus = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Update user role (Admin only)
+// @route   PUT /api/users/:id/role or /api/admin/users/:id/role
+// @access  Private/Admin
+exports.updateUserRole = async (req, res, next) => {
+  try {
+    const { role } = req.body;
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const normalizedRole = String(role).toLowerCase() === 'admin' ? 'admin' : 'customer';
+    user.role = normalizedRole;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: `User role updated to ${normalizedRole}`,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete user (Admin only)
+// @route   DELETE /api/users/:id or /api/admin/users/:id
+// @access  Private/Admin
+exports.deleteUser = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Protect super admin account
+    const adminEmail = (process.env.ADMIN_EMAIL || 'hv0563163@gmail.com').toLowerCase();
+    if (user.email.toLowerCase() === adminEmail) {
+      return res.status(400).json({ success: false, message: 'Super Admin account cannot be deleted' });
+    }
+
+    await user.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      message: 'User deleted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};

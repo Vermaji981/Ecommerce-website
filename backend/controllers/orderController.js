@@ -3,6 +3,7 @@ const Product = require('../models/Product');
 const Cart = require('../models/Cart');
 const Coupon = require('../models/Coupon');
 const sendEmail = require('../utils/sendEmail');
+const mongoose = require('mongoose');
 
 // @desc    Create new order (with backend price, stock & coupon validation)
 // @route   POST /api/orders
@@ -22,37 +23,44 @@ exports.createOrder = async (req, res, next) => {
     let subtotal = 0;
     const validatedItems = [];
 
-    // 1. Fetch real products from MongoDB & validate stock & price
+    // 1. Validate items (supports both MongoDB products & catalog items)
     for (const item of items) {
-      const product = await Product.findById(item.productId || item.product);
+      let product = null;
+      const prodId = item.productId || item.product || item.id || item._id;
+      if (prodId && mongoose.Types.ObjectId.isValid(prodId)) {
+        product = await Product.findById(prodId);
+      }
 
-      if (!product || !product.isActive) {
+      if (product && !product.isActive) {
         return res.status(404).json({
           success: false,
-          message: `Product ${item.name || ''} is no longer available`
+          message: `Product ${product.name || ''} is no longer available`
         });
       }
 
-      if (product.stock < item.quantity) {
+      if (product && product.stock < item.quantity) {
         return res.status(400).json({
           success: false,
           message: `Insufficient stock for product "${product.name}". Only ${product.stock} left.`
         });
       }
 
-      const unitPrice = product.discountPrice > 0 && product.discountPrice < product.price
-        ? product.discountPrice
-        : product.price;
+      const unitPrice = product
+        ? (product.discountPrice > 0 && product.discountPrice < product.price ? product.discountPrice : product.price)
+        : Number(item.price || item.unitPrice || 0);
 
-      const itemTotal = unitPrice * item.quantity;
+      const itemQty = Number(item.quantity || 1);
+      const itemTotal = unitPrice * itemQty;
       subtotal += itemTotal;
 
       validatedItems.push({
-        product: product._id,
-        name: product.name,
-        image: product.images && product.images.length > 0 ? product.images[0] : '',
+        product: product ? product._id : prodId,
+        productId: product ? product._id : prodId,
+        name: product ? product.name : (item.name || item.title || 'Product'),
+        title: product ? product.name : (item.name || item.title || 'Product'),
+        image: product ? (product.images && product.images[0] ? product.images[0] : '') : (item.image || ''),
         price: unitPrice,
-        quantity: item.quantity
+        quantity: itemQty
       });
     }
 
@@ -95,11 +103,13 @@ exports.createOrder = async (req, res, next) => {
       couponCode: couponCode || ''
     });
 
-    // 5. Update Product Stock in MongoDB
+    // 5. Update Product Stock in MongoDB for real products
     for (const item of validatedItems) {
-      await Product.findByIdAndUpdate(item.product, {
-        $inc: { stock: -item.quantity }
-      });
+      if (item.product && mongoose.Types.ObjectId.isValid(item.product)) {
+        await Product.findByIdAndUpdate(item.product, {
+          $inc: { stock: -item.quantity }
+        });
+      }
     }
 
     // 6. Clear user cart in MongoDB

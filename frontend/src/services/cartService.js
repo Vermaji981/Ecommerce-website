@@ -12,8 +12,8 @@ export const cartService = {
     return response.data;
   },
 
-  addToCart: async (productId, quantity = 1) => {
-    const response = await addToCartApi({ productId, quantity });
+  addToCart: async (productId, quantity = 1, extraData = {}) => {
+    const response = await addToCartApi({ productId, quantity, ...extraData });
     return response.data;
   },
 

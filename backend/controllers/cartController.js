@@ -1,40 +1,52 @@
 const Cart = require('../models/Cart');
 const Product = require('../models/Product');
+const mongoose = require('mongoose');
 
 // @desc    Get current user's cart
 // @route   GET /api/cart
 // @access  Private
 exports.getCart = async (req, res, next) => {
   try {
-    let cart = await Cart.findOne({ user: req.user._id }).populate({
-      path: 'items.product',
-      select: 'name price discountPrice images stock brand category SKU isActive'
-    });
+    let cart = await Cart.findOne({ user: req.user._id });
 
     if (!cart) {
       cart = await Cart.create({ user: req.user._id, items: [] });
     }
 
-    // Filter out inactive products or missing products
-    const validItems = cart.items.filter(item => item.product && item.product.isActive);
+    try {
+      cart = await Cart.populate(cart, {
+        path: 'items.product',
+        select: 'name price discountPrice images image img stock brand category SKU isActive',
+        strictPopulate: false
+      });
+    } catch (e) {
+      // Safe fallback if raw populate fails
+    }
 
     // Calculate totals
     let subtotal = 0;
-    const formattedItems = validItems.map(item => {
-      const p = item.product;
-      const unitPrice = p.discountPrice > 0 && p.discountPrice < p.price ? p.discountPrice : p.price;
+    const formattedItems = cart.items.map(item => {
+      const p = item.product && typeof item.product === 'object' && item.product.name ? item.product : null;
+      const unitPrice = p
+        ? (p.discountPrice > 0 && p.discountPrice < p.price ? p.discountPrice : p.price)
+        : Number(item.price || 0);
       const itemTotal = unitPrice * item.quantity;
       subtotal += itemTotal;
 
+      const pImage = p
+        ? (p.images && p.images.length > 0 ? p.images[0] : (p.image || p.img || ''))
+        : (item.image || '');
+
       return {
         _id: item._id,
-        productId: p._id,
-        name: p.name,
-        price: p.price,
-        discountPrice: p.discountPrice,
+        productId: p ? p._id : item.product,
+        name: p ? p.name : (item.name || 'Product'),
+        title: p ? p.name : (item.name || 'Product'),
+        price: unitPrice,
+        discountPrice: p ? p.discountPrice : 0,
         unitPrice,
-        image: p.images && p.images.length > 0 ? p.images[0] : '',
-        stock: p.stock,
+        image: pImage,
+        stock: p ? p.stock : 10,
         quantity: item.quantity,
         itemTotal
       };
@@ -59,19 +71,15 @@ exports.getCart = async (req, res, next) => {
 // @access  Private
 exports.addToCart = async (req, res, next) => {
   try {
-    const { productId, quantity = 1 } = req.body;
+    const { productId, quantity = 1, name, title, price, image } = req.body;
 
     if (!productId) {
       return res.status(400).json({ success: false, message: 'Product ID is required' });
     }
 
-    const product = await Product.findById(productId);
-    if (!product || !product.isActive) {
-      return res.status(404).json({ success: false, message: 'Product not found or unavailable' });
-    }
-
-    if (product.stock < 1) {
-      return res.status(400).json({ success: false, message: 'Product is currently Out of Stock' });
+    let product = null;
+    if (mongoose.Types.ObjectId.isValid(productId)) {
+      product = await Product.findById(productId);
     }
 
     let cart = await Cart.findOne({ user: req.user._id });
@@ -80,7 +88,7 @@ exports.addToCart = async (req, res, next) => {
     }
 
     const itemIndex = cart.items.findIndex(
-      item => item.product.toString() === productId
+      item => String(item.product) === String(productId) || (item.product && String(item.product._id) === String(productId))
     );
 
     let newQuantity = quantity;
@@ -88,18 +96,26 @@ exports.addToCart = async (req, res, next) => {
       newQuantity = cart.items[itemIndex].quantity + quantity;
     }
 
-    // Dynamic stock check: prevent purchasing more than available stock
-    if (newQuantity > product.stock) {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot add more items. Only ${product.stock} units available in stock.`
-      });
-    }
+    const itemPrice = product
+      ? (product.discountPrice > 0 ? product.discountPrice : product.price)
+      : Number(price || 0);
+
+    const itemName = product ? product.name : (name || title || 'Product');
+    const itemImage = product ? (product.images && product.images[0] ? product.images[0] : '') : (image || '');
 
     if (itemIndex > -1) {
       cart.items[itemIndex].quantity = newQuantity;
+      if (itemPrice > 0) cart.items[itemIndex].price = itemPrice;
+      if (itemName) cart.items[itemIndex].name = itemName;
+      if (itemImage) cart.items[itemIndex].image = itemImage;
     } else {
-      cart.items.push({ product: productId, quantity: newQuantity });
+      cart.items.push({
+        product: product ? product._id : productId,
+        name: itemName,
+        price: itemPrice,
+        image: itemImage,
+        quantity: newQuantity
+      });
     }
 
     await cart.save();

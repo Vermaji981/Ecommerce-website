@@ -76,7 +76,7 @@ const Cart = () => {
                                   style={{ width: '70px', height: '70px', objectFit: 'cover' }}
                                 />
                                 <div>
-                                  <h6 className="mb-1 font-weight-bold">{item.title}</h6>
+                                  <h6 className="mb-1 font-weight-bold">{item.title || item.name}</h6>
                                   {item.color && (
                                     <span className="badge bg-light text-dark border">
                                       {item.color}
