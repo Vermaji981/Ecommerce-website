@@ -1,3 +1,8 @@
+const dns = require('dns');
+try {
+  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+} catch (e) {}
+
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
@@ -15,16 +20,23 @@ const app = express();
 
 // Configure CORS
 const allowedOrigins = [
-  process.env.CLIENT_URL || 'http://localhost:3000',
+  process.env.CLIENT_URL,
   'http://localhost:3000',
   'http://127.0.0.1:3000'
-];
+].filter(Boolean);
 
 app.use(
   cors({
     origin: function (origin, callback) {
       // Allow requests with no origin (like mobile apps, curl, Postman)
-      if (!origin || allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      if (
+        !origin ||
+        allowedOrigins.indexOf(origin) !== -1 ||
+        process.env.NODE_ENV === 'development' ||
+        origin.endsWith('.vercel.app') ||
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1')
+      ) {
         callback(null, true);
       } else {
         callback(new Error('CORS policy violation: Access not allowed for this origin'));
@@ -35,6 +47,16 @@ app.use(
     allowedHeaders: ['Content-Type', 'Authorization']
   })
 );
+
+// Database connection middleware for serverless invocations
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+  } catch (e) {
+    console.error('[DB Middleware Error]:', e.message);
+  }
+  next();
+});
 
 // Body Parser Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -87,26 +109,28 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, () => {
-  console.log(`[My E-commerce Server] Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-});
+if (!process.env.VERCEL) {
+  const server = app.listen(PORT, () => {
+    console.log(`[My E-commerce Server] Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+  });
 
-server.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`[My E-commerce Server Error]: Port ${PORT} is already in use.`);
-    console.error(`[Fix]: Close existing server terminals or run 'npm run clean' to free port ${PORT}.`);
-  } else {
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`[My E-commerce Server Error]: Port ${PORT} is already in use.`);
+      console.error(`[Fix]: Close existing server terminals or run 'npm run clean' to free port ${PORT}.`);
+    } else {
+      console.error(`[My E-commerce Server Error]: ${err.message}`);
+    }
+    process.exit(1);
+  });
+
+  // Handle Unhandled Promise Rejections
+  process.on('unhandledRejection', (err, promise) => {
     console.error(`[My E-commerce Server Error]: ${err.message}`);
-  }
-  process.exit(1);
-});
-
-// Handle Unhandled Promise Rejections
-process.on('unhandledRejection', (err, promise) => {
-  console.error(`[My E-commerce Server Error]: ${err.message}`);
-  // Close server & exit process
-  server.close(() => process.exit(1));
-});
+    // Close server & exit process
+    server.close(() => process.exit(1));
+  });
+}
 
 module.exports = app;
 module.exports.app = app;

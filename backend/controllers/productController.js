@@ -8,7 +8,7 @@ const mongoose = require('mongoose');
 exports.getProducts = async (req, res, next) => {
   try {
     const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 12;
+    const limit = req.query.limit === 'all' ? 1000 : (parseInt(req.query.limit, 10) || 100);
     const skip = (page - 1) * limit;
 
     const query = { isActive: true };
@@ -18,14 +18,20 @@ exports.getProducts = async (req, res, next) => {
       const searchRegex = new RegExp(req.query.search, 'i');
       query.$or = [
         { name: searchRegex },
+        { title: searchRegex },
         { description: searchRegex },
-        { brand: searchRegex }
+        { brand: searchRegex },
+        { SKU: searchRegex },
+        { customId: searchRegex }
       ];
     }
 
     // 2. Category Filter
     if (req.query.category) {
-      query.category = req.query.category;
+      query.$or = [
+        { category: req.query.category },
+        { catogries: new RegExp(req.query.category, 'i') }
+      ];
     }
 
     // 3. Brand Filter
@@ -149,11 +155,23 @@ const resolveCategoriesForProducts = async (products) => {
 // @access  Public
 exports.getProductById = async (req, res, next) => {
   try {
+    const targetId = String(req.params.id).trim();
     let product = null;
-    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
-      product = await Product.findById(req.params.id);
-    } else {
-      product = await Product.findOne({ SKU: req.params.id.toUpperCase() });
+
+    if (mongoose.Types.ObjectId.isValid(targetId)) {
+      product = await Product.findById(targetId);
+    }
+    
+    if (!product) {
+      product = await Product.findOne({
+        $or: [
+          { SKU: targetId.toUpperCase() },
+          { customId: targetId },
+          { customId: targetId.toLowerCase() },
+          { name: new RegExp(`^${targetId}$`, 'i') },
+          { title: new RegExp(`^${targetId}$`, 'i') }
+        ]
+      });
     }
 
     if (!product) {
@@ -229,6 +247,7 @@ exports.createProduct = async (req, res, next) => {
     const product = await Product.create({
       name: productName,
       title: productName,
+      customId: (customId || id || finalSKU).toString(),
       description: productDesc,
       price: productPrice,
       originalPrice: Number(originalPrice || productPrice),
@@ -241,6 +260,9 @@ exports.createProduct = async (req, res, next) => {
       images: rawImages,
       stock: productStock,
       SKU: finalSKU,
+      specifications: Array.isArray(specifications) ? specifications : ['100% Authentic Quality', 'Fast Express Dispatch', '30-Day Easy Replacement'],
+      colors: Array.isArray(colors) ? colors : ['Classic Black', 'Silver'],
+      warranty: warranty || '1 Year Brand Warranty',
       isFeatured: isFeatured || false
     });
 

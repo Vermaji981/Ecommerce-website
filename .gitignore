@@ -17,3 +17,4 @@ frontend/.env
 .vscode/
 .DS_Store
 query
+scratch/

@@ -117,7 +117,14 @@ const FitnessPage = () => {
         </div>
 
         <div className="sunglasses-grid">
-          {filteredFitness.map((item) => {
+          {loading ? (
+            <div className="text-center py-5 w-100 col-12">
+              <div className="spinner-border text-primary" role="status">
+                <span className="visually-hidden">Loading fitness items...</span>
+              </div>
+            </div>
+          ) : (
+            filteredFitness.map((item) => {
             const inCart = cartState[item.id];
             const isWishlisted = wishlistState[item.id];
             const discountPercent = Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100);
@@ -216,7 +223,8 @@ const FitnessPage = () => {
                 </div>
               </div>
             );
-          })}
+          })
+        )}
         </div>
       </section>
 

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "build": "npm run build --prefix frontend",
     "frontend": "npm start --prefix frontend",
     "backend": "npm start --prefix backend",
     "clean": "npx kill-port 5000 3000",
@@ -12,7 +13,14 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
     "mongodb": "^7.5.0",
-    "mongoose": "^9.9.1"
+    "mongoose": "^8.4.1",
+    "nodemailer": "^6.9.13",
+    "razorpay": "^2.9.4"
   }
 }

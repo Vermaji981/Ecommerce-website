@@ -53,4 +53,23 @@ const protect = async (req, res, next) => {
   }
 };
 
-module.exports = { protect };
+const optionalAuth = async (req, res, next) => {
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer')
+  ) {
+    try {
+      const token = req.headers.authorization.split(' ')[1];
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET || 'shopkart_jwt_secret_key_production_ready_2026'
+      );
+      req.user = await User.findById(decoded.id).select('-password');
+    } catch (error) {
+      // Ignore invalid token for optional auth
+    }
+  }
+  next();
+};
+
+module.exports = { protect, optionalAuth };

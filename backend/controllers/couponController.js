@@ -62,12 +62,13 @@ exports.applyCoupon = async (req, res, next) => {
   }
 };
 
-// @desc    Get all coupons (Admin)
+// @desc    Get all coupons (Admin sees all, public sees active)
 // @route   GET /api/coupons
-// @access  Private/Admin
+// @access  Public / Optional Auth
 exports.getCoupons = async (req, res, next) => {
   try {
-    const coupons = await Coupon.find({}).sort({ createdAt: -1 });
+    const filter = (req.user && req.user.role === 'admin') ? {} : { isActive: true };
+    const coupons = await Coupon.find(filter).sort({ createdAt: -1 });
     res.status(200).json({
       success: true,
       count: coupons.length,

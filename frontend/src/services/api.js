@@ -14,9 +14,20 @@ import { onSaleProducts } from "../data/onSaleProducts";
 import { allProducts as staticProducts } from "../data/products";
 import { catalogProducts } from "../data/catalog";
 
-const API_BASE_URL = process.env.REACT_APP_API_URL
-  ? `${process.env.REACT_APP_API_URL}/api`
-  : "http://localhost:5000/api";
+const formatApiUrl = (rawUrl) => {
+  if (!rawUrl || typeof rawUrl !== "string") {
+    return "http://localhost:5000/api";
+  }
+  let url = rawUrl.trim().replace(/\/+$/, "");
+  if (!/^https?:\/\//i.test(url)) {
+    url = url.startsWith("localhost") || url.startsWith("127.0.0.1")
+      ? `http://${url}`
+      : `https://${url}`;
+  }
+  return url.endsWith("/api") ? url : `${url}/api`;
+};
+
+const API_BASE_URL = formatApiUrl(process.env.REACT_APP_API_URL);
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -112,7 +123,7 @@ export const addAddressApi = (addressData) => api.post("/users/addresses", addre
 export const deleteAddressApi = (addressId) => api.delete(`/users/addresses/${addressId}`);
 
 // Products APIs
-export const getProductsApi = (params = {}) => api.get("/products", { params });
+export const getProductsApi = (params = {}) => api.get("/products", { params: { limit: 200, ...params } });
 export const getProductByIdApi = (id) => api.get(`/products/${id}`);
 export const createProductApi = (productData) => api.post("/products", productData);
 export const updateProductApi = (id, productData) => api.put(`/products/${id}`, productData);
@@ -181,7 +192,7 @@ api.getProducts = async (params = {}) => {
   try {
     const res = await getProductsApi(params);
     const raw = res.data?.products || res.data || [];
-    if (Array.isArray(raw)) {
+    if (Array.isArray(raw) && raw.length > 0) {
       backendProducts = raw.map((p) => ({
         ...p,
         id: p._id || p.id,
@@ -195,11 +206,13 @@ api.getProducts = async (params = {}) => {
           ? (p.category.name || "General")
           : (p.category || p.catogries || "General")
       }));
+      return backendProducts;
     }
   } catch (error) {
-    console.error("Error fetching products from backend API:", error?.message);
+    console.warn("Backend products API fallback notice:", error?.message);
   }
 
+  // Fallback to static catalog only if backend is unreachable
   const staticProducts = getAllStaticProducts();
 
   if (params.search) {
@@ -226,25 +239,10 @@ api.getProducts = async (params = {}) => {
       return words.length > 0 && words.every((w) => fullText.includes(w));
     };
 
-    const filteredBackend = backendProducts.filter(matchesItem);
-    const filteredStatic = staticProducts.filter(matchesItem);
-
-    const map = new Map();
-    [...filteredBackend, ...filteredStatic].forEach((item) => {
-      const key = String(item.id || item._id);
-      if (!map.has(key)) map.set(key, item);
-    });
-    return Array.from(map.values());
+    return staticProducts.filter(matchesItem);
   }
 
-  const map = new Map();
-  backendProducts.forEach((item) => map.set(String(item.id || item._id), item));
-  staticProducts.forEach((item) => {
-    const key = String(item.id || item._id);
-    if (!map.has(key)) map.set(key, item);
-  });
-
-  return Array.from(map.values());
+  return staticProducts;
 };
 
 api.getProductById = async (id) => {

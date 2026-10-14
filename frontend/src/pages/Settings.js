@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { FaCog, FaShieldAlt, FaDatabase, FaServer, FaCheckCircle, FaLock } from "react-icons/fa";
+import { FaCog, FaShieldAlt, FaCheckCircle, FaLock } from "react-icons/fa";
 
 function Settings() {
   const [storeName, setStoreName] = useState("My E-commerce Website");
   const [supportEmail, setSupportEmail] = useState("hv0563163@gmail.com");
-  const [currency, setCurrency] = useState("INR (₹)");
+  const [currency] = useState("INR (₹)");
   const [successMsg, setSuccessMsg] = useState("");
 
   const handleSaveSettings = (e) => {

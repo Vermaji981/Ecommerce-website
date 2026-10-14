@@ -74,26 +74,34 @@ const ShopSunglasses = () => {
               <div className="shop-products">
                 <h3>Sunglasses ({filteredProducts.length})</h3>
                 <div className="row g-4 mt-1">
-                  {filteredProducts.map((product) => {
-                    const pImage = product.image || (Array.isArray(product.images) && product.images[0]) || "/placeholder.jpg";
-                    const pColor = (Array.isArray(product.colors) && product.colors[0]) || "Standard";
-                    return (
-                      <div className="col-md-4 col-sm-6" key={product.id}>
-                        <ProductCard
-                          id={product.id}
-                          image={pImage}
-                          title={product.title}
-                          price={product.price}
-                          originalPrice={product.originalPrice || product.price * 1.2}
-                          rating={product.rating || 4.5}
-                          reviews={product.reviews || 10}
-                          badge={product.badge || "Popular"}
-                          metadata={`${product.brand || "Brand"} · ${pColor}`}
-                          link={`/product/${product.id}`}
-                        />
+                  {loading ? (
+                    <div className="col-12 text-center py-5">
+                      <div className="spinner-border text-primary" role="status">
+                        <span className="visually-hidden">Loading sunglasses...</span>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ) : (
+                    filteredProducts.map((product) => {
+                      const pImage = product.image || (Array.isArray(product.images) && product.images[0]) || "/placeholder.jpg";
+                      const pColor = (Array.isArray(product.colors) && product.colors[0]) || "Standard";
+                      return (
+                        <div className="col-md-4 col-sm-6" key={product.id}>
+                          <ProductCard
+                            id={product.id}
+                            image={pImage}
+                            title={product.title}
+                            price={product.price}
+                            originalPrice={product.originalPrice || product.price * 1.2}
+                            rating={product.rating || 4.5}
+                            reviews={product.reviews || 10}
+                            badge={product.badge || "Popular"}
+                            metadata={`${product.brand || "Brand"} · ${pColor}`}
+                            link={`/product/${product.id}`}
+                          />
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
