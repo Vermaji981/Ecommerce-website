@@ -2,20 +2,29 @@ import React from "react";
 import { Navigate, Outlet } from "react-router-dom";
 
 function ProtectedAdminRoute() {
-  const token = localStorage.getItem("token");
-  const userString = localStorage.getItem("user") || localStorage.getItem("currentUser");
+  const adminToken =
+    localStorage.getItem("adminToken") ||
+    sessionStorage.getItem("adminToken") ||
+    localStorage.getItem("token");
+
+  const adminUserString =
+    localStorage.getItem("adminUser") ||
+    sessionStorage.getItem("adminUser") ||
+    localStorage.getItem("user") ||
+    localStorage.getItem("currentUser");
+
   let user = null;
 
   try {
-    if (userString) {
-      user = JSON.parse(userString);
+    if (adminUserString) {
+      user = JSON.parse(adminUserString);
     }
   } catch (e) {
     console.error("Error parsing user state in ProtectedAdminRoute:", e);
   }
 
   // 1. Not Authenticated -> Redirect to Admin Login
-  if (!token || !user) {
+  if (!adminToken || !user) {
     return <Navigate to="/admin/login" replace />;
   }
 

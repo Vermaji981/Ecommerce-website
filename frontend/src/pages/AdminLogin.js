@@ -31,6 +31,10 @@ function AdminLogin() {
       }
 
       if (token && userObj) {
+        localStorage.setItem("adminToken", token);
+        localStorage.setItem("adminUser", JSON.stringify(userObj));
+        sessionStorage.setItem("adminToken", token);
+        sessionStorage.setItem("adminUser", JSON.stringify(userObj));
         localStorage.setItem("token", token);
         localStorage.setItem("user", JSON.stringify(userObj));
         localStorage.setItem("currentUser", JSON.stringify(userObj));

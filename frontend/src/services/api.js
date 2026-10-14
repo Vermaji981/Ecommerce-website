@@ -92,9 +92,13 @@ const getAllStaticProducts = () => {
 // Interceptor to attach JWT token to every outgoing request automatically
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    const adminToken = localStorage.getItem("adminToken") || sessionStorage.getItem("adminToken");
+    const regularToken = localStorage.getItem("token");
+    const isAdminEndpoint = config.url && (config.url.startsWith('/admin') || config.url.startsWith('/users') || config.url.startsWith('/banners'));
+
+    const tokenToUse = (isAdminEndpoint && adminToken) ? adminToken : (regularToken || adminToken);
+    if (tokenToUse) {
+      config.headers.Authorization = `Bearer ${tokenToUse}`;
     }
     return config;
   },

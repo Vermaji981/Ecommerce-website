@@ -44,6 +44,13 @@ exports.createPaymentOrder = async (req, res, next) => {
     const orderId = `ORD-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
     const transactionId = `TXN-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
 
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required: You must be logged in to make a payment or place an order.'
+      });
+    }
+
     const formattedAddress = typeof shippingAddress === 'string'
       ? `${shippingAddress}, ${city || ''} ${pincode || ''}`
       : shippingAddress || `${city || ''} ${pincode || ''}`;
@@ -52,10 +59,10 @@ exports.createPaymentOrder = async (req, res, next) => {
     const order = await Order.create({
       orderId,
       transactionId,
-      user: req.user ? req.user._id : null,
-      customerName: customerName || (req.user ? req.user.name : 'Guest Customer'),
-      email: email || (req.user ? req.user.email : 'guest@example.com'),
-      phone: phone || (req.user ? req.user.phone : ''),
+      user: req.user._id,
+      customerName: customerName || req.user.name,
+      email: email || req.user.email,
+      phone: phone || req.user.phone || '',
       shippingAddress: formattedAddress,
       items: items || [],
       subtotal: amountVal,

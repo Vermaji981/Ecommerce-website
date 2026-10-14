@@ -98,6 +98,16 @@ const CheckoutPayment = () => {
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
 
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user') || localStorage.getItem('currentUser');
+    if (!token && !userStr) {
+      setErrorMsg('You must be logged in to place an order or complete payment.');
+      navigate('/auth?redirect=/checkout', {
+        state: { error: 'Please login or create an account to complete your payment.' }
+      });
+      return;
+    }
+
     if (!customer.customerName || !customer.email || !customer.shippingAddress) {
       setErrorMsg('Please fill in your shipping details (Name, Email, Address)');
       return;

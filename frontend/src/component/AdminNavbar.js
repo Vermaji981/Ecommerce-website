@@ -3,7 +3,10 @@ import { useNavigate, Link } from "react-router-dom";
 
 function AdminNavbar({ toggleSidebar, sidebarOpen }) {
   const navigate = useNavigate();
-  const userStr = localStorage.getItem("user");
+  const userStr =
+    localStorage.getItem("adminUser") ||
+    sessionStorage.getItem("adminUser") ||
+    localStorage.getItem("user");
   let user = { name: "Admin User", role: "Admin", email: "admin@dashboard.com" };
 
   try {
@@ -15,9 +18,11 @@ function AdminNavbar({ toggleSidebar, sidebarOpen }) {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    navigate("/login");
+    localStorage.removeItem("adminToken");
+    localStorage.removeItem("adminUser");
+    sessionStorage.removeItem("adminToken");
+    sessionStorage.removeItem("adminUser");
+    navigate("/admin/login");
   };
 
   return (
