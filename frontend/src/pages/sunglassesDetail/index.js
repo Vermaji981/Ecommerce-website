@@ -113,6 +113,14 @@ const SunglassesDetail = () => {
   const handleBuyNow = () => {
     if (!product) return;
     addToCart(product, quantity, selectedColor);
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user') || localStorage.getItem('currentUser');
+    if (!token && !user) {
+      navigate('/auth?redirect=/checkout', {
+        state: { error: 'Please login or create an account to buy this product.' }
+      });
+      return;
+    }
     navigate('/checkout');
   };
 

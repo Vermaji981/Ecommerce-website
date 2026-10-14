@@ -158,7 +158,17 @@ const Cart = () => {
 
               <button
                 className="btn btn-success btn-lg w-100 rounded-pill font-weight-bold py-3 mb-3 shadow-sm"
-                onClick={() => navigate('/checkout')}
+                onClick={() => {
+                  const token = localStorage.getItem('token');
+                  const user = localStorage.getItem('user') || localStorage.getItem('currentUser');
+                  if (!token && !user) {
+                    navigate('/auth?redirect=/checkout', {
+                      state: { error: 'Please login or create an account to proceed to payment.' }
+                    });
+                    return;
+                  }
+                  navigate('/checkout');
+                }}
               >
                 <FaLock className="mr-2" /> Proceed to Payment
               </button>

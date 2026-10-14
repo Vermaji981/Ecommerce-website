@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation, Link } from "react-router-dom";
 import { api } from "../../services/api";
 import {
   FaUser,
@@ -20,7 +20,9 @@ import {
 
 const AuthPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  const redirectTarget = searchParams.get("redirect") || "/profile";
   
   // Default to Register if tab=register in URL query, else Login
   const initialMode = searchParams.get("tab") === "register" ? false : true;
@@ -57,6 +59,9 @@ const AuthPage = () => {
 
   useEffect(() => {
     updateLocalUser();
+    if (location.state?.error) {
+      setMessage({ type: "danger", text: location.state.error });
+    }
     
     const handleAuthChange = () => {
       updateLocalUser();
@@ -69,6 +74,7 @@ const AuthPage = () => {
       window.removeEventListener("storage", handleAuthChange);
       window.removeEventListener("authChange", handleAuthChange);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleChange = (e) => {
@@ -131,12 +137,12 @@ const AuthPage = () => {
           setMessage({ type: "success", text: `Welcome back, ${loggedUser.name}! Redirecting...` });
           
           setTimeout(() => {
-            if (String(loggedUser.role).toLowerCase() === "admin") {
+            if (String(loggedUser.role).toLowerCase() === "admin" && !searchParams.get("redirect")) {
               navigate("/dashboard");
             } else {
-              navigate("/profile");
+              navigate(redirectTarget);
             }
-          }, 1000);
+          }, 800);
           return;
         }
       } catch (err) {
@@ -151,7 +157,7 @@ const AuthPage = () => {
           window.dispatchEvent(new Event("authChange"));
           setCurrentUser(foundUser);
           setMessage({ type: "success", text: `Welcome back, ${foundUser.name}! Redirecting...` });
-          setTimeout(() => navigate("/profile"), 1000);
+          setTimeout(() => navigate(redirectTarget), 800);
           return;
         }
 
@@ -237,7 +243,7 @@ const AuthPage = () => {
         setMessage({ type: "success", text: `Account successfully registered! Logged in as ${loggedUser.name}! 🎉` });
         setFormData({ name: "", email: "", phone: "", password: "", confirmPassword: "", agreeTerms: true });
 
-        setTimeout(() => navigate("/profile"), 1000);
+        setTimeout(() => navigate(redirectTarget), 800);
         return;
       }
     } catch (err) {
@@ -257,7 +263,7 @@ const AuthPage = () => {
       setMessage({ type: "success", text: `Account created! Logged in as ${newUser.name}! 🎉` });
       setFormData({ name: "", email: "", phone: "", password: "", confirmPassword: "", agreeTerms: true });
 
-      setTimeout(() => navigate("/profile"), 1000);
+      setTimeout(() => navigate(redirectTarget), 800);
     }
   };
 

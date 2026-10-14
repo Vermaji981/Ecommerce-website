@@ -36,6 +36,7 @@ import Login from "./pages/login";
 import AdminLogin from "./pages/AdminLogin";
 import Unauthorized from "./pages/Unauthorized";
 import ProtectedAdminRoute from "./component/ProtectedAdminRoute";
+import ProtectedRoute from "./component/ProtectedRoutes";
 import Adminlayout from "./Layout/Adminlayout";
 
 import Deshboard from "./pages/deshboard";
@@ -136,8 +137,22 @@ function App() {
             <Route path="/cancel" element={<CheckoutCancel />} />
             <Route path="/auth" element={<AuthPage />} />
             <Route path="/cart" element={<Cart />} />
-            <Route path="/checkout" element={<CheckoutPayment />} />
-            <Route path="/payment" element={<CheckoutPayment />} />
+            <Route
+              path="/checkout"
+              element={
+                <ProtectedRoute>
+                  <CheckoutPayment />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/payment"
+              element={
+                <ProtectedRoute>
+                  <CheckoutPayment />
+                </ProtectedRoute>
+              }
+            />
             <Route path="/profile" element={<Profile />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/contact-us" element={<Contact />} />

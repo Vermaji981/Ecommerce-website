@@ -64,6 +64,14 @@ const ShoesPage = () => {
       originalPrice: item.originalPrice,
       image: item.images ? item.images[0] : item.img
     });
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user') || localStorage.getItem('currentUser');
+    if (!token && !user) {
+      navigate('/auth?redirect=/checkout', {
+        state: { error: 'Please login or create an account to buy this product.' }
+      });
+      return;
+    }
     navigate("/checkout");
   };
 

@@ -52,6 +52,16 @@ const CheckoutPayment = () => {
   const [errorMsg, setErrorMsg] = useState(null);
 
   useEffect(() => {
+    const token = localStorage.getItem('token');
+    const userStr = localStorage.getItem('user') || localStorage.getItem('currentUser');
+    if (!token && !userStr) {
+      navigate('/auth?redirect=/checkout', {
+        replace: true,
+        state: { error: 'Please login or create an account to proceed to payment.' }
+      });
+      return;
+    }
+
     // Load pre-existing profile if any
     api.getUserProfile()
       .then((profile) => {
@@ -67,7 +77,7 @@ const CheckoutPayment = () => {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [navigate]);
 
   const formatPrice = (amount) => {
     return new Intl.NumberFormat('en-IN', {
