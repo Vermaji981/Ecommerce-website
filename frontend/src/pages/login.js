@@ -76,6 +76,7 @@ function Login() {
         if (userObj) {
           localStorage.setItem("user", JSON.stringify(userObj));
           localStorage.setItem("currentUser", JSON.stringify(userObj));
+          localStorage.setItem("lastActivityTime", Date.now().toString());
         }
 
         window.dispatchEvent(new Event("authChange"));
@@ -105,6 +106,7 @@ function Login() {
         if (userObj) {
           localStorage.setItem("user", JSON.stringify(userObj));
           localStorage.setItem("currentUser", JSON.stringify(userObj));
+          localStorage.setItem("lastActivityTime", Date.now().toString());
         }
 
         window.dispatchEvent(new Event("authChange"));

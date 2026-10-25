@@ -126,6 +126,7 @@ const AuthPage = () => {
           }
           localStorage.setItem("user", JSON.stringify(loggedUser));
           localStorage.setItem("currentUser", JSON.stringify(loggedUser));
+          localStorage.setItem("lastActivityTime", Date.now().toString());
 
           const existingIdx = users.findIndex((u) => u.email.toLowerCase() === normalizedEmail);
           const updatedUsers = existingIdx >= 0
@@ -234,6 +235,7 @@ const AuthPage = () => {
         }
         localStorage.setItem("user", JSON.stringify(loggedUser));
         localStorage.setItem("currentUser", JSON.stringify(loggedUser));
+        localStorage.setItem("lastActivityTime", Date.now().toString());
 
         const updatedUsers = [...users.filter((u) => u.email.toLowerCase() !== normalizedEmail), loggedUser];
         localStorage.setItem("shopUsers", JSON.stringify(updatedUsers));
@@ -271,13 +273,21 @@ const AuthPage = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("currentUser");
+    localStorage.removeItem("adminToken");
+    localStorage.removeItem("adminUser");
+    sessionStorage.clear();
     window.dispatchEvent(new Event("authChange"));
     setCurrentUser(null);
     setMessage({ type: "info", text: "You have been successfully logged out." });
   };
 
   const handleSwitchAccount = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
     localStorage.removeItem("currentUser");
+    localStorage.removeItem("adminToken");
+    localStorage.removeItem("adminUser");
+    sessionStorage.clear();
     window.dispatchEvent(new Event("authChange"));
     setCurrentUser(null);
     setIsLogin(false);

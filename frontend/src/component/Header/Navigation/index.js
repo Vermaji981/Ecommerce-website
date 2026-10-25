@@ -307,9 +307,8 @@ const NavBar = () => {
 
                 {/* MEN SUBMENU */}
                 <li
-                  className={`list-inline-item nav-has-submenu ${
-                    mobileSubmenuOpen === "Men" ? "mobile-open" : ""
-                  }`}
+                  className={`list-inline-item nav-has-submenu ${mobileSubmenuOpen === "Men" ? "mobile-open" : ""
+                    }`}
                 >
                   <div className="nav-item-mobile">
                     <Link to="/shop?search=Men">
@@ -353,9 +352,8 @@ const NavBar = () => {
 
                 {/* ELECTRONIC SUBMENU */}
                 <li
-                  className={`list-inline-item nav-has-submenu ${
-                    mobileSubmenuOpen === "Electronic" ? "mobile-open" : ""
-                  }`}
+                  className={`list-inline-item nav-has-submenu ${mobileSubmenuOpen === "Electronic" ? "mobile-open" : ""
+                    }`}
                 >
                   <div className="nav-item-mobile">
                     <Link to="/Mobiles">
@@ -399,9 +397,8 @@ const NavBar = () => {
 
                 {/* BAKERY SUBMENU */}
                 <li
-                  className={`list-inline-item nav-has-submenu ${
-                    mobileSubmenuOpen === "Bakery" ? "mobile-open" : ""
-                  }`}
+                  className={`list-inline-item nav-has-submenu ${mobileSubmenuOpen === "Bakery" ? "mobile-open" : ""
+                    }`}
                 >
                   <div className="nav-item-mobile">
                     <Link to="/Grocery">
@@ -445,9 +442,8 @@ const NavBar = () => {
 
                 {/* GROCERY SUBMENU */}
                 <li
-                  className={`list-inline-item nav-has-submenu ${
-                    mobileSubmenuOpen === "Grocery" ? "mobile-open" : ""
-                  }`}
+                  className={`list-inline-item nav-has-submenu ${mobileSubmenuOpen === "Grocery" ? "mobile-open" : ""
+                    }`}
                 >
                   <div className="nav-item-mobile">
                     <Link to="/Grocery">
@@ -491,9 +487,8 @@ const NavBar = () => {
 
                 {/* BLOG SUBMENU */}
                 <li
-                  className={`list-inline-item nav-has-submenu ${
-                    mobileSubmenuOpen === "Blog" ? "mobile-open" : ""
-                  }`}
+                  className={`list-inline-item nav-has-submenu ${mobileSubmenuOpen === "Blog" ? "mobile-open" : ""
+                    }`}
                 >
                   <div className="nav-item-mobile">
                     <Link to="/shop">

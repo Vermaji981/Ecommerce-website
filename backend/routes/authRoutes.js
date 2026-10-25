@@ -5,7 +5,8 @@ const {
   loginUser,
   verifyOtp,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  logoutUser
 } = require('../controllers/authController');
 
 router.post('/register', registerUser);
@@ -13,5 +14,7 @@ router.post('/login', loginUser);
 router.post('/verify-otp', verifyOtp);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
+router.post('/logout', logoutUser);
+router.get('/logout', logoutUser);
 
 module.exports = router;

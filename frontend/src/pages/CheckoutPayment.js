@@ -26,21 +26,15 @@ const CheckoutPayment = () => {
     phone: '',
     shippingAddress: '',
     city: '',
-    pincode: ''
+    state: '',
+    postalCode: '',
+    country: 'India'
   });
 
   const [paymentMethod, setPaymentMethod] = useState('card');
 
-  // Card State
-  const [cardData, setCardData] = useState({
-    cardNumber: '4532 8921 4092 1184',
-    expiry: '08/28',
-    cvv: '889',
-    cardHolder: 'Happy Verma'
-  });
-
   // UPI State
-  const [upiId, setUpiId] = useState('happy@okicici');
+  const [upiId, setUpiId] = useState('');
 
   // Netbanking State
   const [selectedBank, setSelectedBank] = useState('State Bank of India');
@@ -62,18 +56,26 @@ const CheckoutPayment = () => {
       return;
     }
 
-    // Load pre-existing profile if any
+    // Load pre-existing profile if any (ONLY for regular customer, NEVER prefill admin credentials)
     api.getUserProfile()
       .then((profile) => {
         if (profile) {
-          setCustomer({
-            customerName: profile.name || '',
-            email: profile.email || '',
-            phone: profile.phone || '',
-            shippingAddress: profile.address || '',
-            city: profile.city || '',
-            pincode: profile.pincode || ''
-          });
+          const adminEmail = 'hv0563163@gmail.com';
+          const isAdmin = profile.role === 'admin' || (profile.email && profile.email.toLowerCase() === adminEmail);
+          
+          if (!isAdmin) {
+            setCustomer((prev) => ({
+              ...prev,
+              customerName: profile.name || prev.customerName,
+              email: profile.email || prev.email,
+              phone: profile.phone || prev.phone,
+              shippingAddress: profile.address || (profile.addresses && profile.addresses[0]?.street) || prev.shippingAddress,
+              city: profile.city || (profile.addresses && profile.addresses[0]?.city) || prev.city,
+              state: profile.state || (profile.addresses && profile.addresses[0]?.state) || prev.state,
+              postalCode: profile.pincode || profile.postalCode || (profile.addresses && profile.addresses[0]?.postalCode) || prev.postalCode,
+              country: profile.country || (profile.addresses && profile.addresses[0]?.country) || prev.country
+            }));
+          }
         }
       })
       .catch(() => {});
@@ -91,10 +93,6 @@ const CheckoutPayment = () => {
     setCustomer({ ...customer, [e.target.name]: e.target.value });
   };
 
-  const handleCardChange = (e) => {
-    setCardData({ ...cardData, [e.target.name]: e.target.value });
-  };
-
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
 
@@ -108,8 +106,8 @@ const CheckoutPayment = () => {
       return;
     }
 
-    if (!customer.customerName || !customer.email || !customer.shippingAddress) {
-      setErrorMsg('Please fill in your shipping details (Name, Email, Address)');
+    if (!customer.customerName?.trim() || !customer.email?.trim() || !customer.shippingAddress?.trim()) {
+      setErrorMsg('Please fill in required shipping details (Full Name, Email Address, and Delivery Address)');
       return;
     }
 
@@ -139,9 +137,49 @@ const CheckoutPayment = () => {
           image: item.image || ''
         }));
 
-        // Execute payment processing call
+        const postalCodeVal = (customer.postalCode || customer.pincode || '').trim();
+        const cityVal = (customer.city || '').trim();
+        const stateVal = (customer.state || '').trim();
+        const countryVal = (customer.country || 'India').trim();
+        const streetVal = customer.shippingAddress.trim();
+        const fullNameVal = customer.customerName.trim();
+        const emailVal = customer.email.trim();
+        const phoneVal = (customer.phone || '').trim();
+
+        const addressParts = [
+          streetVal,
+          cityVal,
+          stateVal,
+          postalCodeVal,
+          countryVal
+        ].filter(Boolean);
+        const formattedAddressStr = addressParts.join(', ');
+
+        const structuredShipping = {
+          fullName: fullNameVal,
+          phone: phoneVal,
+          email: emailVal,
+          street: streetVal,
+          address: streetVal,
+          city: cityVal,
+          state: stateVal,
+          postalCode: postalCodeVal,
+          pincode: postalCodeVal,
+          country: countryVal,
+          formattedAddress: formattedAddressStr
+        };
+
+        // Execute payment processing call with user-entered shipping details
         const payload = {
-          ...customer,
+          customerName: fullNameVal,
+          email: emailVal,
+          phone: phoneVal,
+          shippingAddress: structuredShipping,
+          city: cityVal,
+          state: stateVal,
+          postalCode: postalCodeVal,
+          pincode: postalCodeVal,
+          country: countryVal,
           items: formattedItems,
           amount: effectiveTotal,
           totalAmount: effectiveTotal,
@@ -199,6 +237,27 @@ const CheckoutPayment = () => {
                 <span className="text-muted">Total Paid:</span>
                 <span className="font-weight-bold text-success h5 mb-0">
                   {formatPrice(completedOrder.totalAmount)}
+                </span>
+              </div>
+              <div className="d-flex justify-content-between border-bottom pb-2 mb-2">
+                <span className="text-muted">Shipping Recipient:</span>
+                <span className="font-weight-bold text-end">
+                  {completedOrder.customerName || completedOrder.shippingAddress?.fullName || 'Customer'}
+                </span>
+              </div>
+              <div className="d-flex justify-content-between border-bottom pb-2 mb-2">
+                <span className="text-muted">Shipping Address:</span>
+                <span className="font-weight-bold text-end small" style={{ maxWidth: '320px' }}>
+                  {typeof completedOrder.shippingAddress === 'string'
+                    ? completedOrder.shippingAddress
+                    : completedOrder.shippingAddress?.formattedAddress ||
+                      [
+                        completedOrder.shippingAddress?.street || completedOrder.shippingAddress?.address,
+                        completedOrder.shippingAddress?.city,
+                        completedOrder.shippingAddress?.state,
+                        completedOrder.shippingAddress?.postalCode || completedOrder.shippingAddress?.pincode,
+                        completedOrder.shippingAddress?.country
+                      ].filter(Boolean).join(', ') || 'Shipping details not available'}
                 </span>
               </div>
               <div className="d-flex justify-content-between">
@@ -269,7 +328,7 @@ const CheckoutPayment = () => {
                         name="customerName"
                         value={customer.customerName}
                         onChange={handleInputChange}
-                        placeholder="e.g. Happy Verma"
+                        placeholder="e.g. Ramesh Kumar"
                         required
                       />
                     </div>
@@ -282,45 +341,85 @@ const CheckoutPayment = () => {
                         name="email"
                         value={customer.email}
                         onChange={handleInputChange}
-                        placeholder="happy@example.com"
+                        placeholder="e.g. customer@example.com"
                         required
                       />
                     </div>
 
                     <div className="col-md-6">
-                      <label className="form-label font-weight-semibold">Mobile Number</label>
+                      <label className="form-label font-weight-semibold">Mobile Number *</label>
                       <input
                         type="tel"
                         className="form-control"
                         name="phone"
                         value={customer.phone}
                         onChange={handleInputChange}
-                        placeholder="9817200000"
+                        placeholder="e.g. 9876543210"
+                        required
                       />
                     </div>
 
                     <div className="col-md-6">
-                      <label className="form-label font-weight-semibold">City</label>
+                      <label className="form-label font-weight-semibold">City *</label>
                       <input
                         type="text"
                         className="form-control"
                         name="city"
                         value={customer.city}
                         onChange={handleInputChange}
-                        placeholder="New Delhi"
+                        placeholder="e.g. Mumbai"
+                        required
                       />
                     </div>
 
                     <div className="col-12">
-                      <label className="form-label font-weight-semibold">Delivery Address *</label>
+                      <label className="form-label font-weight-semibold">Delivery Address (House / Street / Landmark) *</label>
                       <textarea
                         className="form-control"
                         rows="2"
                         name="shippingAddress"
                         value={customer.shippingAddress}
                         onChange={handleInputChange}
-                        placeholder="House no, Street, Landmark..."
+                        placeholder="Flat / House No., Street, Area, Landmark..."
                         required
+                      />
+                    </div>
+
+                    <div className="col-md-4">
+                      <label className="form-label font-weight-semibold">State *</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        name="state"
+                        value={customer.state}
+                        onChange={handleInputChange}
+                        placeholder="e.g. Maharashtra"
+                        required
+                      />
+                    </div>
+
+                    <div className="col-md-4">
+                      <label className="form-label font-weight-semibold">PIN / Postal Code *</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        name="postalCode"
+                        value={customer.postalCode}
+                        onChange={handleInputChange}
+                        placeholder="e.g. 400001"
+                        required
+                      />
+                    </div>
+
+                    <div className="col-md-4">
+                      <label className="form-label font-weight-semibold">Country</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        name="country"
+                        value={customer.country}
+                        onChange={handleInputChange}
+                        placeholder="India"
                       />
                     </div>
                   </div>
@@ -371,61 +470,16 @@ const CheckoutPayment = () => {
                   {/* Payment Details Body based on tab */}
                   {paymentMethod === 'card' && (
                     <div className="payment-tab-content bg-light p-3 rounded-3">
-                      <div className="row g-3">
-                        <div className="col-12">
-                          <label className="form-label font-weight-semibold">Card Number</label>
-                          <div className="input-group">
-                            <input
-                              type="text"
-                              className="form-control font-monospace"
-                              name="cardNumber"
-                              value={cardData.cardNumber}
-                              onChange={handleCardChange}
-                              maxLength="19"
-                              placeholder="4532 8921 4092 1184"
-                            />
-                            <span className="input-group-text bg-white">
-                              <FaCreditCard className="text-primary" />
-                            </span>
-                          </div>
+                      <div className="d-flex align-items-center mb-3">
+                        <FaCreditCard className="text-primary me-2" style={{ fontSize: '1.8rem' }} />
+                        <div>
+                          <h6 className="font-weight-bold mb-0">Credit / Debit Card</h6>
+                          <small className="text-muted">Visa, MasterCard, RuPay, Maestro, American Express</small>
                         </div>
-
-                        <div className="col-md-6">
-                          <label className="form-label font-weight-semibold">Expiry Date</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            name="expiry"
-                            value={cardData.expiry}
-                            onChange={handleCardChange}
-                            placeholder="MM/YY"
-                          />
-                        </div>
-
-                        <div className="col-md-6">
-                          <label className="form-label font-weight-semibold">CVV Code</label>
-                          <input
-                            type="password"
-                            className="form-control"
-                            name="cvv"
-                            value={cardData.cvv}
-                            onChange={handleCardChange}
-                            maxLength="4"
-                            placeholder="***"
-                          />
-                        </div>
-
-                        <div className="col-12">
-                          <label className="form-label font-weight-semibold">Cardholder Name</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            name="cardHolder"
-                            value={cardData.cardHolder}
-                            onChange={handleCardChange}
-                            placeholder="Name on card"
-                          />
-                        </div>
+                      </div>
+                      <div className="alert alert-info border-0 rounded-3 small mb-0">
+                        <FaShieldAlt className="me-2 text-primary" />
+                        In accordance with RBI regulations and cybersecurity guidelines, sensitive card details (Card Number, CVV, Expiry Date, PIN) are never requested, stored, or prefilled directly on this website. When you click <strong>Pay Now</strong>, you will enter card details securely through the PCI-DSS certified gateway.
                       </div>
                     </div>
                   )}

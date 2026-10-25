@@ -1,14 +1,15 @@
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import api from "../services/api";
 import { FaShieldAlt, FaLock, FaEnvelope, FaSignInAlt, FaExclamationTriangle, FaStore } from "react-icons/fa";
 
 function AdminLogin() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("hv0563163@gmail.com");
   const [password, setPassword] = useState("123456789");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(location.state?.error || "");
 
   const handleAdminLogin = async (e) => {
     e.preventDefault();
@@ -38,6 +39,7 @@ function AdminLogin() {
         localStorage.setItem("token", token);
         localStorage.setItem("user", JSON.stringify(userObj));
         localStorage.setItem("currentUser", JSON.stringify(userObj));
+        localStorage.setItem("lastActivityTime", Date.now().toString());
         window.dispatchEvent(new Event("authChange"));
         navigate("/admin");
       }

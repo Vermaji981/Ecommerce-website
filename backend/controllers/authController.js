@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const sendEmail = require('../utils/sendEmail');
+const { logActivity } = require('../utils/activityLogger');
 
 // Helper function to send token response
 const sendTokenResponse = (user, statusCode, res, message = 'Success') => {
@@ -70,6 +71,19 @@ exports.registerUser = async (req, res, next) => {
       message: `Hello ${user.name},\n\nYour OTP for verifying your account on My E-commerce Website is: ${otp}\nThis OTP is valid for 15 minutes.\n\nThank you!`
     });
 
+    // Record Activity
+    await logActivity({
+      actionType: 'USER_REGISTER',
+      user: user._id,
+      userName: user.name,
+      userEmail: user.email,
+      userRole: user.role,
+      entityType: 'User',
+      entityId: user._id.toString(),
+      description: `New user "${user.name}" registered account (${user.email})`,
+      req
+    });
+
     sendTokenResponse(user, 201, res, 'Registration successful! Verification OTP sent to email.');
   } catch (error) {
     next(error);
@@ -117,6 +131,23 @@ exports.loginUser = async (req, res, next) => {
         message: 'Account disabled. Please contact administrator.'
       });
     }
+
+    // Update lastActive timestamp
+    user.lastActive = new Date();
+    await user.save();
+
+    // Record Activity
+    await logActivity({
+      actionType: 'USER_LOGIN',
+      user: user._id,
+      userName: user.name,
+      userEmail: user.email,
+      userRole: user.role,
+      entityType: 'User',
+      entityId: user._id.toString(),
+      description: `User "${user.name}" (${user.email}) logged in successfully`,
+      req
+    });
 
     sendTokenResponse(user, 200, res, 'Login successful');
   } catch (error) {
@@ -284,3 +315,22 @@ exports.getMe = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Logout user / clear server session
+// @route   POST /api/auth/logout
+// @access  Public / Private
+exports.logoutUser = async (req, res, next) => {
+  try {
+    // Clear cookies if any cookie-based sessions are present
+    res.clearCookie('token');
+    res.clearCookie('adminToken');
+
+    res.status(200).json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

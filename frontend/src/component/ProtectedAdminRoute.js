@@ -1,31 +1,57 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 
 function ProtectedAdminRoute() {
-  const adminToken =
-    localStorage.getItem("adminToken") ||
-    sessionStorage.getItem("adminToken") ||
-    localStorage.getItem("token");
+  const [, setTick] = useState(0);
 
-  const adminUserString =
-    localStorage.getItem("adminUser") ||
-    sessionStorage.getItem("adminUser") ||
-    localStorage.getItem("user") ||
-    localStorage.getItem("currentUser");
+  const getAdminAuth = () => {
+    const adminToken =
+      localStorage.getItem("adminToken") ||
+      sessionStorage.getItem("adminToken") ||
+      localStorage.getItem("token");
 
-  let user = null;
+    const adminUserString =
+      localStorage.getItem("adminUser") ||
+      sessionStorage.getItem("adminUser") ||
+      localStorage.getItem("user") ||
+      localStorage.getItem("currentUser");
 
-  try {
-    if (adminUserString) {
-      user = JSON.parse(adminUserString);
+    let user = null;
+    try {
+      if (adminUserString) {
+        user = JSON.parse(adminUserString);
+      }
+    } catch (e) {
+      user = null;
     }
-  } catch (e) {
-    console.error("Error parsing user state in ProtectedAdminRoute:", e);
-  }
+
+    return { adminToken, user };
+  };
+
+  const { adminToken, user } = getAdminAuth();
+
+  // Revalidate authentication on browser Back/Forward (pageshow), cross-tab changes, and focus
+  useEffect(() => {
+    const revalidate = () => {
+      setTick((t) => t + 1);
+    };
+
+    window.addEventListener("pageshow", revalidate);
+    window.addEventListener("storage", revalidate);
+    window.addEventListener("authChange", revalidate);
+    window.addEventListener("focus", revalidate);
+
+    return () => {
+      window.removeEventListener("pageshow", revalidate);
+      window.removeEventListener("storage", revalidate);
+      window.removeEventListener("authChange", revalidate);
+      window.removeEventListener("focus", revalidate);
+    };
+  }, []);
 
   // 1. Not Authenticated -> Redirect to Admin Login
   if (!adminToken || !user) {
-    return <Navigate to="/admin/login" replace />;
+    return <Navigate to="/admin/login" replace state={{ error: "Please sign in as Admin to access the dashboard." }} />;
   }
 
   // 2. Authenticated but NOT an Admin -> Redirect to Unauthorized 403 Page

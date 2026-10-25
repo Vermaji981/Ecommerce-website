@@ -28,6 +28,7 @@ import Term from "./component/footerdata/privacy/Termuse/term";
 import AuthPage from "./pages/auth/index";
 import Cart from "./pages/Cart";
 import CheckoutPayment from "./pages/CheckoutPayment";
+import GovernmentPayment from "./pages/GovernmentPayment";
 import Profile from "./pages/Profile";
 import Contact from "./pages/Contact";
 
@@ -37,6 +38,7 @@ import AdminLogin from "./pages/AdminLogin";
 import Unauthorized from "./pages/Unauthorized";
 import ProtectedAdminRoute from "./component/ProtectedAdminRoute";
 import ProtectedRoute from "./component/ProtectedRoutes";
+import InactivityHandler from "./component/InactivityHandler/InactivityHandler";
 import Adminlayout from "./Layout/Adminlayout";
 
 import Deshboard from "./pages/deshboard";
@@ -46,6 +48,7 @@ import EditProduct from "./pages/EditProduct";
 import Categories from "./pages/Categories";
 import Users from "./pages/Users";
 import Order from "./pages/Order";
+import ActivityLogs from "./pages/ActivityLogs";
 import Banners from "./pages/Banners";
 import Offers from "./pages/Offers";
 import Reviews from "./pages/Reviews";
@@ -68,6 +71,7 @@ function App() {
   return (
     <CartProvider>
       <BrowserRouter>
+        <InactivityHandler />
         <Routes>
           {/* Public Login Routes */}
           <Route path="/login" element={<Login />} />
@@ -85,6 +89,7 @@ function App() {
               <Route path="/admin/categories" element={<Categories />} />
               <Route path="/admin/orders" element={<Order />} />
               <Route path="/admin/users" element={<Users />} />
+              <Route path="/admin/activity-logs" element={<ActivityLogs />} />
               <Route path="/admin/banners" element={<Banners />} />
               <Route path="/admin/offers" element={<Offers />} />
               <Route path="/admin/reviews" element={<Reviews />} />
@@ -145,19 +150,16 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/payment"
-              element={
-                <ProtectedRoute>
-                  <CheckoutPayment />
-                </ProtectedRoute>
-              }
-            />
             <Route path="/profile" element={<Profile />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/contact-us" element={<Contact />} />
             <Route path="*" element={<Notfound />} />
           </Route>
+
+          {/* Dedicated Government Application Form Fee Payment Desk (Clean Standalone Official Layout) */}
+          <Route path="/payment" element={<GovernmentPayment />} />
+          <Route path="/application-payment" element={<GovernmentPayment />} />
+          <Route path="/fee-payment" element={<GovernmentPayment />} />
         </Routes>
       </BrowserRouter>
     </CartProvider>

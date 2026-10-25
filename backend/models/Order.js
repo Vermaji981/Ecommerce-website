@@ -1,13 +1,52 @@
 const mongoose = require('mongoose');
 
+const StatusHistorySchema = new mongoose.Schema({
+  status: {
+    type: String,
+    required: true,
+    enum: [
+      'Pending',
+      'Confirmed',
+      'Processing',
+      'Shipped',
+      'Out for Delivery',
+      'Delivered',
+      'Cancelled',
+      'Returned'
+    ]
+  },
+  previousStatus: {
+    type: String,
+    default: ''
+  },
+  changedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  changedByName: {
+    type: String,
+    default: 'System'
+  },
+  changedAt: {
+    type: Date,
+    default: Date.now
+  },
+  note: {
+    type: String,
+    default: ''
+  }
+}, { _id: true });
+
 const OrderSchema = new mongoose.Schema({
   orderId: {
     type: String,
-    trim: true
+    trim: true,
+    index: true
   },
   user: {
-    type: mongoose.Schema.Types.Mixed,
-    ref: 'User'
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    index: true
   },
   customerName: {
     type: String,
@@ -17,7 +56,8 @@ const OrderSchema = new mongoose.Schema({
   email: {
     type: String,
     trim: true,
-    default: ''
+    default: '',
+    index: true
   },
   phone: {
     type: String,
@@ -55,7 +95,9 @@ const OrderSchema = new mongoose.Schema({
   },
   paymentStatus: {
     type: String,
-    default: 'Paid'
+    enum: ['Pending', 'Paid', 'Failed', 'Refunded'],
+    default: 'Pending',
+    index: true
   },
   transactionId: {
     type: String,
@@ -67,15 +109,43 @@ const OrderSchema = new mongoose.Schema({
   },
   orderStatus: {
     type: String,
-    default: 'Confirmed'
+    enum: [
+      'Pending',
+      'Confirmed',
+      'Processing',
+      'Shipped',
+      'Out for Delivery',
+      'Delivered',
+      'Cancelled',
+      'Returned'
+    ],
+    default: 'Pending',
+    index: true
   },
+  statusHistory: [StatusHistorySchema],
   couponCode: {
     type: String,
     default: ''
   },
   deliveredAt: {
     type: Date
+  },
+  cancelledAt: {
+    type: Date
+  },
+  cancelReason: {
+    type: String,
+    default: ''
   }
 }, { timestamps: true });
 
+// Auto-generate orderId if not provided
+OrderSchema.pre('save', function (next) {
+  if (!this.orderId) {
+    this.orderId = `ORD-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+  }
+  next();
+});
+
 module.exports = mongoose.model('Order', OrderSchema);
+

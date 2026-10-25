@@ -46,6 +46,10 @@ const Header = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("currentUser");
+    localStorage.removeItem("adminToken");
+    localStorage.removeItem("adminUser");
+    localStorage.removeItem("lastActivityTime");
+    sessionStorage.clear();
     window.dispatchEvent(new Event("authChange"));
     setCurrentUser(null);
     navigate("/auth");

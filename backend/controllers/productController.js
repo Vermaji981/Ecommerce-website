@@ -1,6 +1,7 @@
 const Product = require('../models/Product');
 const Category = require('../models/Category');
 const mongoose = require('mongoose');
+const { logActivity } = require('../utils/activityLogger');
 
 // @desc    Get all products (with Search, Filter, Sort, Pagination)
 // @route   GET /api/products
@@ -11,7 +12,10 @@ exports.getProducts = async (req, res, next) => {
     const limit = req.query.limit === 'all' ? 1000 : (parseInt(req.query.limit, 10) || 100);
     const skip = (page - 1) * limit;
 
-    const query = { isActive: true };
+    const query = {};
+    if (req.query.includeInactive !== 'true' && (!req.user || req.user.role !== 'admin')) {
+      query.isActive = true;
+    }
 
     // 1. Search Query (Name or Description or Brand)
     if (req.query.search) {
@@ -193,7 +197,30 @@ exports.getProductById = async (req, res, next) => {
 // @access  Private/Admin
 exports.createProduct = async (req, res, next) => {
   try {
-    const { name, title, description, price, originalPrice, discountPrice, category, catogries, brand, images, image, img, stock, SKU, sku, isFeatured } = req.body;
+    const {
+      name,
+      title,
+      description,
+      price,
+      originalPrice,
+      discountPrice,
+      category,
+      catogries,
+      brand,
+      images,
+      image,
+      img,
+      stock,
+      SKU,
+      sku,
+      isFeatured,
+      specifications,
+      colors,
+      warranty,
+      customId,
+      id,
+      status
+    } = req.body;
 
     const productName = (name || title || '').trim();
     const productPrice = Number(price || 0);
@@ -201,7 +228,7 @@ exports.createProduct = async (req, res, next) => {
     const productBrand = (brand || 'General').trim();
     const productDesc = (description || `${productName} - High quality e-commerce product.`).trim();
     const productStock = stock !== undefined && stock !== null && stock !== '' ? Number(stock) : 10;
-    
+
     let rawImages = Array.isArray(images) && images.length > 0 ? images : [image || img].filter(Boolean);
     if (rawImages.length === 0) {
       rawImages = ['https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800'];
@@ -244,6 +271,10 @@ exports.createProduct = async (req, res, next) => {
       }
     }
 
+    const productStatus = status || (productStock === 0 ? 'Out of Stock' : 'Active');
+    const createdBy = req.user ? req.user._id : null;
+    const createdByName = req.user ? req.user.name : 'Administrator';
+
     const product = await Product.create({
       name: productName,
       title: productName,
@@ -263,7 +294,30 @@ exports.createProduct = async (req, res, next) => {
       specifications: Array.isArray(specifications) ? specifications : ['100% Authentic Quality', 'Fast Express Dispatch', '30-Day Easy Replacement'],
       colors: Array.isArray(colors) ? colors : ['Classic Black', 'Silver'],
       warranty: warranty || '1 Year Brand Warranty',
-      isFeatured: isFeatured || false
+      isFeatured: isFeatured || false,
+      status: productStatus,
+      createdBy,
+      createdByName
+    });
+
+    // Log Activity
+    await logActivity({
+      actionType: 'PRODUCT_CREATE',
+      user: req.user ? req.user._id : null,
+      userName: req.user ? req.user.name : 'Administrator',
+      userEmail: req.user ? req.user.email : '',
+      userRole: req.user ? req.user.role : 'admin',
+      entityType: 'Product',
+      entityId: product._id.toString(),
+      productId: product._id.toString(),
+      description: `Product "${product.name}" (SKU: ${product.SKU}) created with stock ${product.stock} and price ₹${product.price} by ${createdByName}`,
+      metadata: {
+        productName: product.name,
+        price: product.price,
+        stock: product.stock,
+        SKU: product.SKU
+      },
+      req
     });
 
     res.status(201).json({
@@ -304,12 +358,44 @@ exports.updateProduct = async (req, res, next) => {
       if (catDoc) req.body.category = catDoc._id;
     }
 
+    // Set updatedBy
+    if (req.user) {
+      req.body.updatedBy = req.user._id;
+    }
+
+    // Automatically adjust status if stock reaches 0 and status wasn't explicitly forced
+    if (req.body.stock !== undefined && Number(req.body.stock) === 0 && !req.body.status) {
+      req.body.status = 'Out of Stock';
+    } else if (req.body.stock !== undefined && Number(req.body.stock) > 0 && !req.body.status && product.status === 'Out of Stock') {
+      req.body.status = 'Active';
+    }
+
     product = await Product.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true
     });
 
     const [formatted] = await resolveCategoriesForProducts([product]);
+
+    // Log Activity
+    await logActivity({
+      actionType: 'PRODUCT_UPDATE',
+      user: req.user ? req.user._id : null,
+      userName: req.user ? req.user.name : 'Administrator',
+      userEmail: req.user ? req.user.email : '',
+      userRole: req.user ? req.user.role : 'admin',
+      entityType: 'Product',
+      entityId: product._id.toString(),
+      productId: product._id.toString(),
+      description: `Product "${product.name}" (SKU: ${product.SKU}) details updated by ${req.user ? req.user.name : 'Admin'}`,
+      metadata: {
+        updatedFields: Object.keys(req.body),
+        price: product.price,
+        stock: product.stock,
+        status: product.status
+      },
+      req
+    });
 
     res.status(200).json({
       success: true,
@@ -331,7 +417,29 @@ exports.deleteProduct = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
+    const productName = product.name;
+    const productSKU = product.SKU;
+    const productId = product._id.toString();
+
     await product.deleteOne();
+
+    // Log Activity
+    await logActivity({
+      actionType: 'PRODUCT_DELETE',
+      user: req.user ? req.user._id : null,
+      userName: req.user ? req.user.name : 'Administrator',
+      userEmail: req.user ? req.user.email : '',
+      userRole: req.user ? req.user.role : 'admin',
+      entityType: 'Product',
+      entityId: productId,
+      productId: productId,
+      description: `Product "${productName}" (SKU: ${productSKU}) was deleted by ${req.user ? req.user.name : 'Admin'}`,
+      metadata: {
+        deletedProductName: productName,
+        deletedProductSKU: productSKU
+      },
+      req
+    });
 
     res.status(200).json({
       success: true,

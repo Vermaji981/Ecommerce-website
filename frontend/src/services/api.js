@@ -89,14 +89,37 @@ const getAllStaticProducts = () => {
   });
 };
 
-// Interceptor to attach JWT token to every outgoing request automatically
+// Interceptor to attach JWT token to outgoing requests with strict separation of customer and admin tokens
 api.interceptors.request.use(
   (config) => {
     const adminToken = localStorage.getItem("adminToken") || sessionStorage.getItem("adminToken");
     const regularToken = localStorage.getItem("token");
-    const isAdminEndpoint = config.url && (config.url.startsWith('/admin') || config.url.startsWith('/users') || config.url.startsWith('/banners'));
+    const url = config.url || "";
 
-    const tokenToUse = (isAdminEndpoint && adminToken) ? adminToken : (regularToken || adminToken);
+    // Specific customer endpoints that must ALWAYS use the customer/regular token
+    const isCustomerEndpoint =
+      url.startsWith('/users/profile') ||
+      url.startsWith('/users/addresses') ||
+      url.startsWith('/orders/my-orders') ||
+      url.startsWith('/payment/create-order') ||
+      (url === '/orders' && config.method === 'post');
+
+    // Strict admin endpoints that should use the admin token
+    const isAdminEndpoint =
+      url.startsWith('/admin') ||
+      url.startsWith('/banners') ||
+      (url.startsWith('/users') && !url.startsWith('/users/profile') && !url.startsWith('/users/addresses'));
+
+    let tokenToUse = null;
+    if (isCustomerEndpoint) {
+      tokenToUse = regularToken;
+    } else if (isAdminEndpoint) {
+      tokenToUse = adminToken || regularToken;
+    } else {
+      // General endpoints: prefer regular customer token
+      tokenToUse = regularToken || adminToken;
+    }
+
     if (tokenToUse) {
       config.headers.Authorization = `Bearer ${tokenToUse}`;
     }
@@ -105,10 +128,37 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor
+// Response Interceptor to automatically handle session expiry / 401 Unauthorized
 api.interceptors.response.use(
   (response) => response,
-  (error) => Promise.reject(error)
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      const reqUrl = error.config?.url || "";
+      const isAuthAttempt = reqUrl.includes("/login") || reqUrl.includes("/register") || reqUrl.includes("/logout");
+      
+      if (!isAuthAttempt) {
+        // Clear expired session storage
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        localStorage.removeItem("currentUser");
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("adminUser");
+        localStorage.removeItem("lastActivityTime");
+        sessionStorage.clear();
+
+        // Broadcast session expiration across tabs
+        try {
+          localStorage.setItem(
+            "authLogoutEvent",
+            JSON.stringify({ timestamp: Date.now(), reason: "token_expired" })
+          );
+        } catch (e) {}
+
+        window.dispatchEvent(new Event("authChange"));
+      }
+    }
+    return Promise.reject(error);
+  }
 );
 
 // --- Individual Named Export Functions ---
@@ -116,6 +166,7 @@ api.interceptors.response.use(
 // Authentication APIs
 export const registerUserApi = (userData) => api.post("/auth/register", userData);
 export const loginUserApi = (credentials) => api.post("/auth/login", credentials);
+export const logoutUserApi = () => api.post("/auth/logout").catch(() => ({ data: { success: true } }));
 export const verifyOtpApi = (data) => api.post("/auth/verify-otp", data);
 export const forgotPasswordApi = (data) => api.post("/auth/forgot-password", data);
 export const resetPasswordApi = (data) => api.post("/auth/reset-password", data);
@@ -348,6 +399,39 @@ api.processPayment = async (payload) => {
   return res.data;
 };
 
+// Government Application Fee Services
+export const getApplicationFeeDetailsApi = (appNumber) =>
+  api.get(`/payment/application/${encodeURIComponent(appNumber)}`);
+
+export const createApplicationFeeOrderApi = (payload) =>
+  api.post("/payment/application/create-order", payload);
+
+export const verifyApplicationFeePaymentApi = (payload) =>
+  api.post("/payment/application/verify", payload);
+
+export const recordApplicationFeeFailureApi = (payload) =>
+  api.post("/payment/application/failure", payload);
+
+api.getApplicationFeeDetails = async (appNumber) => {
+  const res = await getApplicationFeeDetailsApi(appNumber);
+  return res.data;
+};
+
+api.createApplicationFeeOrder = async (payload) => {
+  const res = await createApplicationFeeOrderApi(payload);
+  return res.data;
+};
+
+api.verifyApplicationFeePayment = async (payload) => {
+  const res = await verifyApplicationFeePaymentApi(payload);
+  return res.data;
+};
+
+api.recordApplicationFeeFailure = async (payload) => {
+  const res = await recordApplicationFeeFailureApi(payload);
+  return res.data;
+};
+
 api.getCategories = async () => {
   try {
     const res = await getCategoriesApi();
@@ -357,5 +441,21 @@ api.getCategories = async () => {
   }
 };
 
+api.logout = logoutUserApi;
+
+// ==========================================
+// ADMIN DASHBOARD & MANAGEMENT API EXTENSIONS
+// ==========================================
+api.getAdminDashboard = (params) => api.get("/admin/dashboard", { params });
+api.getAdminUsers = (params) => api.get("/admin/users", { params });
+api.getAdminUserById = (id) => api.get(`/admin/users/${id}`);
+api.updateUserStatus = (id, isActive) => api.patch(`/admin/users/${id}/status`, { isActive });
+api.getActivityLogs = (params) => api.get("/admin/activity-logs", { params });
+api.getAdminOrders = (params) => api.get("/admin/orders", { params });
+api.getAdminOrderById = (id) => api.get(`/admin/orders/${id}`);
+api.updateAdminOrderStatus = (id, data) => api.patch(`/admin/orders/${id}/status`, data);
+api.cancelCustomerOrder = (id, reason) => api.patch(`/orders/${id}/cancel`, { reason });
+
 export default api;
+
 

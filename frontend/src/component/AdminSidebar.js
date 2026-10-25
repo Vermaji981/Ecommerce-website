@@ -7,6 +7,7 @@ import {
   FaTags,
   FaShoppingBag,
   FaUsers,
+  FaHistory,
   FaImage,
   FaPercent,
   FaStar,
@@ -67,6 +68,11 @@ function AdminSidebar({ isOpen }) {
         <NavLink to="/admin/users" className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
           <FaUsers className="me-2" />
           <span>Users</span>
+        </NavLink>
+
+        <NavLink to="/admin/activity-logs" className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}>
+          <FaHistory className="me-2" />
+          <span>Activity Logs</span>
         </NavLink>
 
         <div className="nav-section-title px-3 mt-4 mb-2">MARKETING & REVIEWS</div>

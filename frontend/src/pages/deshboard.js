@@ -1,31 +1,52 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../services/api";
-import Statcard from "../component/Statcard";
 import Loader from "../component/Loader";
+import {
+  FaUsers,
+  FaUserCheck,
+  FaBoxOpen,
+  FaShoppingBag,
+  FaHourglassHalf,
+  FaCogs,
+  FaShippingFast,
+  FaCheckCircle,
+  FaTimesCircle,
+  FaMoneyBillWave,
+  FaSyncAlt,
+  FaPlus,
+  FaHistory,
+  FaArrowRight
+} from "react-icons/fa";
 
 function Deshboard() {
   const [stats, setStats] = useState({
-    products: 0,
-    users: 0,
-    totalCustomers: 0,
-    totalAdmins: 0,
-    orders: 0,
+    totalRegisteredUsers: 0,
+    activeUsers: 0,
+    totalProducts: 0,
+    totalOrders: 0,
+    pendingOrders: 0,
+    processingOrders: 0,
+    shippedOrders: 0,
+    deliveredOrders: 0,
+    cancelledOrders: 0,
+    confirmedOrders: 0,
+    outForDeliveryOrders: 0,
+    returnedOrders: 0,
+    totalSales: 0,
     totalValue: 0,
-    totalRevenue: 0,
     lowStockProducts: 0,
     outOfStockCount: 0,
-    averagePrice: 0,
-    categoryBreakdown: {},
-    recentProducts: [],
+    recentOrders: [],
     recentUsers: [],
+    recentActivities: []
   });
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchDashboardStats();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchDashboardStats = async () => {
@@ -33,339 +54,389 @@ function Deshboard() {
       setLoading(true);
       const response = await api.get("/admin/dashboard");
       const data = response.data || {};
-      const statsObj = data.stats || {};
+      const s = data.stats || data;
 
       setStats({
-        products: data.products !== undefined ? data.products : (statsObj.totalProducts || 0),
-        users: data.users !== undefined ? data.users : (statsObj.totalUsers || 0),
-        totalCustomers: data.totalCustomers !== undefined ? data.totalCustomers : (statsObj.totalCustomers || 0),
-        totalAdmins: data.totalAdmins !== undefined ? data.totalAdmins : (statsObj.totalAdmins || 0),
-        orders: data.orders !== undefined ? data.orders : (statsObj.totalOrders || 0),
-        totalValue: data.totalValue !== undefined ? data.totalValue : (statsObj.totalValue || 0),
-        totalRevenue: data.totalRevenue !== undefined ? data.totalRevenue : (statsObj.totalRevenue || 0),
-        lowStockProducts: data.lowStockProducts !== undefined ? data.lowStockProducts : (statsObj.lowStockProducts || 0),
-        outOfStockCount: data.outOfStockCount !== undefined ? data.outOfStockCount : (statsObj.outOfStockCount || 0),
-        averagePrice: data.averagePrice !== undefined ? data.averagePrice : (statsObj.averagePrice || 0),
-        categoryBreakdown: data.categoryBreakdown || {},
-        recentProducts: Array.isArray(data.recentProducts) ? data.recentProducts : [],
-        recentUsers: Array.isArray(data.recentUsers) 
-          ? data.recentUsers 
-          : (Array.isArray(data.recentCustomers) ? data.recentCustomers : []),
+        totalRegisteredUsers: s.totalRegisteredUsers !== undefined ? s.totalRegisteredUsers : (data.users || 0),
+        activeUsers: s.activeUsers !== undefined ? s.activeUsers : (s.totalRegisteredUsers || 0),
+        totalProducts: s.totalProducts !== undefined ? s.totalProducts : (data.products || 0),
+        totalOrders: s.totalOrders !== undefined ? s.totalOrders : (data.orders || 0),
+        pendingOrders: s.pendingOrders || 0,
+        processingOrders: s.processingOrders || 0,
+        shippedOrders: s.shippedOrders || 0,
+        deliveredOrders: s.deliveredOrders || 0,
+        cancelledOrders: s.cancelledOrders || 0,
+        confirmedOrders: s.confirmedOrders || 0,
+        outForDeliveryOrders: s.outForDeliveryOrders || 0,
+        returnedOrders: s.returnedOrders || 0,
+        totalSales: Number(s.totalSales !== undefined ? s.totalSales : (s.totalRevenue || 0)),
+        totalValue: Number(s.totalValue || 0),
+        lowStockProducts: Number(s.lowStockProducts || 0),
+        outOfStockCount: Number(s.outOfStockCount || 0),
+        recentOrders: Array.isArray(data.recentOrders) ? data.recentOrders : [],
+        recentUsers: Array.isArray(data.recentUsers) ? data.recentUsers : [],
+        recentActivities: Array.isArray(data.recentActivities) ? data.recentActivities : []
       });
       setError(null);
     } catch (err) {
       console.error("Dashboard fetch error:", err);
-      setError(err.response?.data?.message || "Failed to load dashboard data");
+      setError(err.response?.data?.message || "Failed to load live dashboard statistics from database.");
     } finally {
       setLoading(false);
     }
   };
 
+  const formatCurrency = (num) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0
+    }).format(num || 0);
+  };
+
+  const getOrderStatusBadgeClass = (status) => {
+    switch (status) {
+      case "Delivered":
+        return "bg-success text-white";
+      case "Shipped":
+      case "Out for Delivery":
+        return "bg-info text-dark";
+      case "Processing":
+        return "bg-primary text-white";
+      case "Confirmed":
+        return "bg-secondary text-white";
+      case "Cancelled":
+      case "Returned":
+        return "bg-danger text-white";
+      case "Pending":
+      default:
+        return "bg-warning text-dark";
+    }
+  };
+
+  const getPaymentStatusBadgeClass = (status) => {
+    switch (status) {
+      case "Paid":
+        return "bg-success text-white";
+      case "Failed":
+        return "bg-danger text-white";
+      case "Refunded":
+        return "bg-info text-dark";
+      case "Pending":
+      default:
+        return "bg-warning text-dark";
+    }
+  };
+
   if (loading) {
-    return <Loader text="Calculating live product statistics & loading registered users..." />;
+    return <Loader text="Calculating live metrics from MongoDB Atlas..." />;
   }
 
-  const categoryEntries = Object.entries(stats.categoryBreakdown || {});
-
   return (
-    <div className="dashboard-page">
-      <div className="page-header">
+    <div className="dashboard-page p-3 p-md-4">
+      {/* Top Page Header */}
+      <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
         <div>
-          <h1 className="page-title">Dashboard Overview</h1>
-          <p className="page-subtitle">Real-time calculations for added products & registered user accounts</p>
+          <h1 className="h3 fw-bold mb-1 text-dark">Executive Admin Dashboard</h1>
+          <p className="text-muted small mb-0">
+            Real-time MongoDB monitoring for user activity, product inventory, sales & order fulfillment
+          </p>
         </div>
-        <div className="header-actions">
-          <button className="btn btn-secondary" onClick={fetchDashboardStats}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
-            </svg>
-            Refresh Calculations
+        <div className="d-flex flex-wrap gap-2">
+          <button className="btn btn-outline-secondary btn-sm d-flex align-items-center gap-2" onClick={fetchDashboardStats}>
+            <FaSyncAlt /> Refresh
           </button>
-          <Link to="/add-product" className="btn btn-primary">
-            + Add New Product
+          <Link to="/admin/add-product" className="btn btn-primary btn-sm d-flex align-items-center gap-2">
+            <FaPlus /> Add Product
           </Link>
-          <Link to="/users" className="btn btn-outline-primary">
-            👥 View All Users
+          <Link to="/admin/orders" className="btn btn-dark btn-sm d-flex align-items-center gap-2">
+            <FaShoppingBag /> Manage Orders
           </Link>
         </div>
       </div>
 
-      {error && <div className="alert alert-error">{error}</div>}
+      {error && <div className="alert alert-danger mb-4">{error}</div>}
 
-      {/* Main Calculated Metrics Stat Cards */}
-      <div className="stats-grid">
-        <Statcard
-          title="Total Added Products"
-          value={stats.products}
-          color="indigo"
-          trend="Live DB Count"
-          subtext="Total items active in store"
-          icon={
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
-              <line x1="3" y1="6" x2="21" y2="6"></line>
-              <path d="M16 10a4 4 0 0 1-8 0"></path>
-            </svg>
-          }
-        />
+      {/* 1. Core Primary Dashboard Statistics (Top Row) */}
+      <div className="row g-3 mb-4">
+        {/* Total Registered Users */}
+        <div className="col-12 col-sm-6 col-xl-3">
+          <div className="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white">
+            <div className="d-flex justify-content-between align-items-start">
+              <div>
+                <span className="text-muted small fw-semibold text-uppercase">Total Registered Users</span>
+                <h3 className="fw-bold my-2 text-dark">{stats.totalRegisteredUsers}</h3>
+                <span className="badge bg-success-subtle text-success border border-success-subtle small d-inline-flex align-items-center gap-1">
+                  <FaUserCheck /> {stats.activeUsers} Active Accounts
+                </span>
+              </div>
+              <div className="p-3 rounded-circle bg-primary-subtle text-primary fs-5">
+                <FaUsers />
+              </div>
+            </div>
+            <div className="mt-3 pt-2 border-top d-flex justify-content-between align-items-center small text-muted">
+              <span>Customer directory</span>
+              <Link to="/admin/users" className="text-primary text-decoration-none fw-semibold">
+                View Users →
+              </Link>
+            </div>
+          </div>
+        </div>
 
-        <Statcard
-          title="Registered Users"
-          value={stats.users}
-          color="emerald"
-          trend={`${stats.totalCustomers} Customers | ${stats.totalAdmins} Admins`}
-          subtext="Total registered user accounts"
-          icon={
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-              <circle cx="9" cy="7" r="4"></circle>
-              <path d="M23 21v-2a4 4 0 0 3-3.87"></path>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-            </svg>
-          }
-        />
+        {/* Total Products */}
+        <div className="col-12 col-sm-6 col-xl-3">
+          <div className="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white">
+            <div className="d-flex justify-content-between align-items-start">
+              <div>
+                <span className="text-muted small fw-semibold text-uppercase">Total Products</span>
+                <h3 className="fw-bold my-2 text-dark">{stats.totalProducts}</h3>
+                <span className="badge bg-info-subtle text-info border border-info-subtle small">
+                  {stats.lowStockProducts} Low Stock | {stats.outOfStockCount} Out
+                </span>
+              </div>
+              <div className="p-3 rounded-circle bg-info-subtle text-info fs-5">
+                <FaBoxOpen />
+              </div>
+            </div>
+            <div className="mt-3 pt-2 border-top d-flex justify-content-between align-items-center small text-muted">
+              <span>Store inventory</span>
+              <Link to="/admin/products" className="text-info text-decoration-none fw-semibold">
+                Manage Catalog →
+              </Link>
+            </div>
+          </div>
+        </div>
 
-        <Statcard
-          title="Total Inventory Value"
-          value={`₹${(stats.totalValue || 0).toLocaleString()}`}
-          color="amber"
-          trend="Calculated Live"
-          subtext="Formula: Price × Stock quantity"
-          icon={
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="12" y1="1" x2="12" y2="23"></line>
-              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-            </svg>
-          }
-        />
+        {/* Total Orders */}
+        <div className="col-12 col-sm-6 col-xl-3">
+          <div className="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white">
+            <div className="d-flex justify-content-between align-items-start">
+              <div>
+                <span className="text-muted small fw-semibold text-uppercase">Total Orders</span>
+                <h3 className="fw-bold my-2 text-dark">{stats.totalOrders}</h3>
+                <span className="badge bg-primary-subtle text-primary border border-primary-subtle small">
+                  {stats.processingOrders + stats.shippedOrders} In Transit / Process
+                </span>
+              </div>
+              <div className="p-3 rounded-circle bg-warning-subtle text-warning fs-5">
+                <FaShoppingBag />
+              </div>
+            </div>
+            <div className="mt-3 pt-2 border-top d-flex justify-content-between align-items-center small text-muted">
+              <span>All customer orders</span>
+              <Link to="/admin/orders" className="text-warning text-decoration-none fw-semibold">
+                Fulfill Orders →
+              </Link>
+            </div>
+          </div>
+        </div>
 
-        <Statcard
-          title="Stock & Pricing Metrics"
-          value={`${stats.lowStockProducts} Low Stock`}
-          color="rose"
-          trend={`Avg Price: ₹${stats.averagePrice}`}
-          subtext={`${stats.outOfStockCount} items out of stock`}
-          icon={
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-              <line x1="8" y1="21" x2="16" y2="21"></line>
-              <line x1="12" y1="17" x2="12" y2="21"></line>
-            </svg>
-          }
-        />
+        {/* Total Sales from Verified Successful Payments */}
+        <div className="col-12 col-sm-6 col-xl-3">
+          <div className="card border-0 shadow-sm rounded-3 h-100 p-3 bg-white">
+            <div className="d-flex justify-content-between align-items-start">
+              <div>
+                <span className="text-muted small fw-semibold text-uppercase">Verified Total Sales</span>
+                <h3 className="fw-bold my-2 text-success">{formatCurrency(stats.totalSales)}</h3>
+                <span className="badge bg-success-subtle text-success border border-success-subtle small">
+                  From Verified "Paid" Orders
+                </span>
+              </div>
+              <div className="p-3 rounded-circle bg-success-subtle text-success fs-5">
+                <FaMoneyBillWave />
+              </div>
+            </div>
+            <div className="mt-3 pt-2 border-top d-flex justify-content-between align-items-center small text-muted">
+              <span>Verified gateway revenue</span>
+              <span className="fw-bold text-success">Live MongoDB</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Category Breakdown Calculation Bar */}
-      {categoryEntries.length > 0 && (
-        <div className="card mb-4" style={{ marginBottom: "1.5rem" }}>
-          <div className="card-header">
-            <h3>Calculated Products by Category</h3>
-            <p className="card-subtitle">Live product distribution across store categories</p>
+      {/* 2. Order Fulfillment Status Control Summary Cards */}
+      <div className="card border-0 shadow-sm rounded-3 mb-4 bg-white">
+        <div className="card-header bg-transparent border-0 pt-3 px-3 pb-0 d-flex justify-content-between align-items-center">
+          <div>
+            <h5 className="fw-bold mb-0 text-dark">Order Delivery Status Breakdown</h5>
+            <p className="text-muted small mb-0">Dynamic counts across every stage of the order lifecycle</p>
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", padding: "0.5rem 0" }}>
-            {categoryEntries.map(([catName, count]) => (
-              <div 
-                key={catName} 
-                style={{
-                  background: "#f8fafc",
-                  border: "1.5px solid #e2e8f0",
-                  borderRadius: "10px",
-                  padding: "0.55rem 1.1rem",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.6rem",
-                  fontSize: "0.9rem",
-                  boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)"
-                }}
-              >
-                <span style={{ fontWeight: 700, color: "#0f172a" }}>{catName}:</span>
-                <span className="badge badge-primary" style={{ fontWeight: 700 }}>{count} items</span>
+          <Link to="/admin/orders" className="btn btn-outline-primary btn-sm">
+            View All Orders <FaArrowRight className="ms-1" />
+          </Link>
+        </div>
+        <div className="card-body p-3">
+          <div className="row g-3">
+            {/* Pending Orders */}
+            <div className="col-6 col-md-4 col-xl-2">
+              <div className="p-3 rounded-3 border text-center bg-light">
+                <div className="text-warning fs-4 mb-1"><FaHourglassHalf /></div>
+                <div className="fw-bold fs-4 text-dark">{stats.pendingOrders}</div>
+                <div className="small text-muted fw-semibold">Pending Orders</div>
               </div>
-            ))}
+            </div>
+
+            {/* Processing Orders */}
+            <div className="col-6 col-md-4 col-xl-2">
+              <div className="p-3 rounded-3 border text-center bg-light">
+                <div className="text-primary fs-4 mb-1"><FaCogs /></div>
+                <div className="fw-bold fs-4 text-dark">{stats.processingOrders}</div>
+                <div className="small text-muted fw-semibold">Processing</div>
+              </div>
+            </div>
+
+            {/* Shipped Orders */}
+            <div className="col-6 col-md-4 col-xl-2">
+              <div className="p-3 rounded-3 border text-center bg-light">
+                <div className="text-info fs-4 mb-1"><FaShippingFast /></div>
+                <div className="fw-bold fs-4 text-dark">{stats.shippedOrders + stats.outForDeliveryOrders}</div>
+                <div className="small text-muted fw-semibold">Shipped / In Transit</div>
+              </div>
+            </div>
+
+            {/* Delivered Orders */}
+            <div className="col-6 col-md-4 col-xl-2">
+              <div className="p-3 rounded-3 border text-center bg-light">
+                <div className="text-success fs-4 mb-1"><FaCheckCircle /></div>
+                <div className="fw-bold fs-4 text-success">{stats.deliveredOrders}</div>
+                <div className="small text-muted fw-semibold">Delivered Orders</div>
+              </div>
+            </div>
+
+            {/* Cancelled Orders */}
+            <div className="col-6 col-md-4 col-xl-2">
+              <div className="p-3 rounded-3 border text-center bg-light">
+                <div className="text-danger fs-4 mb-1"><FaTimesCircle /></div>
+                <div className="fw-bold fs-4 text-danger">{stats.cancelledOrders}</div>
+                <div className="small text-muted fw-semibold">Cancelled Orders</div>
+              </div>
+            </div>
+
+            {/* Active Users */}
+            <div className="col-6 col-md-4 col-xl-2">
+              <div className="p-3 rounded-3 border text-center bg-light">
+                <div className="text-secondary fs-4 mb-1"><FaUserCheck /></div>
+                <div className="fw-bold fs-4 text-dark">{stats.activeUsers}</div>
+                <div className="small text-muted fw-semibold">Active Users</div>
+              </div>
+            </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Grid: 2 columns for Registered Users & Added Products */}
-      <div className="dashboard-grid-2col mb-4">
-        {/* Registered Users Section */}
-        <div className="card">
-          <div className="card-header flex-between">
-            <div>
-              <h3>Registered Users</h3>
-              <p className="card-subtitle">Users registered in MongoDB database</p>
-            </div>
-            <Link to="/users" className="link-btn">View All ({stats.users}) →</Link>
-          </div>
-
-          <div className="table-responsive">
-            {stats.recentUsers && stats.recentUsers.length > 0 ? (
-              <table className="custom-table">
-                <thead>
-                  <tr>
-                    <th>User</th>
-                    <th>Email / Contact</th>
-                    <th>Role</th>
-                    <th>Joined</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.recentUsers.map((u) => (
-                    <tr key={u._id}>
-                      <td className="font-semibold flex-align">
-                        <div 
-                          style={{
-                            width: "32px",
-                            height: "32px",
-                            borderRadius: "50%",
-                            background: u.role === "Admin" || u.role === "admin" ? "#6366f1" : "#10b981",
-                            color: "#fff",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontWeight: "bold",
-                            fontSize: "0.85rem",
-                            marginRight: "8px"
-                          }}
-                        >
-                          {u.name ? u.name.charAt(0).toUpperCase() : "U"}
-                        </div>
-                        <span>{u.name || "User"}</span>
-                      </td>
-                      <td>
-                        <div>{u.email}</div>
-                        {u.phone && <small style={{ color: "var(--text-muted, #64748b)" }}>{u.phone}</small>}
-                      </td>
-                      <td>
-                        <span className={u.role === "Admin" || u.role === "admin" ? "badge badge-primary" : "badge badge-neutral"}>
-                          {u.role || "customer"}
-                        </span>
-                      </td>
-                      <td>
-                        <small>{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "N/A"}</small>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <div className="empty-state">
-                <p>No registered users found yet.</p>
+      {/* 3. Split Section: Recent Orders & Live User Activity Monitoring Stream */}
+      <div className="row g-4 mb-4">
+        {/* Left Column: Recent Orders */}
+        <div className="col-12 col-lg-7">
+          <div className="card border-0 shadow-sm rounded-3 h-100 bg-white">
+            <div className="card-header bg-transparent border-bottom py-3 px-3 d-flex justify-content-between align-items-center">
+              <div>
+                <h5 className="fw-bold mb-0 text-dark">Recent Customer Orders</h5>
+                <small className="text-muted">Live orders placed by customers</small>
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Calculated Added Products Section */}
-        <div className="card">
-          <div className="card-header flex-between">
-            <div>
-              <h3>Added Products & Calculations</h3>
-              <p className="card-subtitle">Recent products with live stock & price calculation</p>
+              <Link to="/admin/orders" className="text-primary text-decoration-none small fw-semibold">
+                Manage Orders →
+              </Link>
             </div>
-            <Link to="/products" className="link-btn">View All ({stats.products}) →</Link>
-          </div>
-
-          <div className="table-responsive">
-            {stats.recentProducts && stats.recentProducts.length > 0 ? (
-              <table className="custom-table">
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>Category</th>
-                    <th>Price</th>
-                    <th>Stock</th>
-                    <th>Total Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.recentProducts.map((p) => {
-                    const price = Number(p.price) || 0;
-                    const stock = p.stock !== undefined && p.stock !== null ? Number(p.stock) : 10;
-                    const itemTotal = price * stock;
-
-                    return (
-                      <tr key={p._id}>
-                        <td className="font-semibold flex-align">
-                          <img
-                            src={p.image || (Array.isArray(p.images) && p.images[0]) || "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100"}
-                            alt={p.name || p.title}
-                            className="table-thumb"
-                            style={{ width: "36px", height: "36px", borderRadius: "6px", objectFit: "cover" }}
-                            onError={(e) => { e.target.src = "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100"; }}
-                          />
-                          <span>{p.name || p.title}</span>
-                        </td>
-                        <td>
-                          <span className="badge badge-neutral">
-                            {typeof p.category === 'object' && p.category !== null 
-                              ? (p.category.name || "General") 
-                              : (p.catogries || p.category || "General")}
-                          </span>
-                        </td>
-                        <td className="price-tag">₹{price}</td>
-                        <td>
-                          <span className={stock > 5 ? "badge badge-success" : stock > 0 ? "badge badge-amber" : "badge badge-danger"}>
-                            {stock} in stock
-                          </span>
-                        </td>
-                        <td className="font-semibold" style={{ color: "var(--color-emerald, #10b981)" }}>
-                          ₹{itemTotal.toLocaleString()}
-                        </td>
+            <div className="card-body p-0">
+              {stats.recentOrders.length > 0 ? (
+                <div className="table-responsive">
+                  <table className="table table-hover align-middle mb-0">
+                    <thead className="table-light">
+                      <tr>
+                        <th className="ps-3">Order ID</th>
+                        <th>Customer</th>
+                        <th>Amount</th>
+                        <th>Payment</th>
+                        <th>Fulfillment</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            ) : (
-              <div className="empty-state">
-                <p>No products added yet.</p>
-                <Link to="/add-product" className="btn btn-sm btn-primary">Add First Product</Link>
-              </div>
-            )}
+                    </thead>
+                    <tbody>
+                      {stats.recentOrders.map((ord) => (
+                        <tr key={ord._id}>
+                          <td className="ps-3 fw-semibold text-primary">
+                            {ord.orderId || `ORD-${String(ord._id).slice(-6)}`}
+                          </td>
+                          <td>
+                            <div className="fw-bold text-dark">
+                              {ord.customerName || (typeof ord.shippingAddress === 'object' && (ord.shippingAddress?.fullName || ord.shippingAddress?.name)) || (ord.user?.role !== 'admin' ? ord.user?.name : '') || "Customer"}
+                            </div>
+                            <div className="text-muted small">
+                              {ord.email || (typeof ord.shippingAddress === 'object' && ord.shippingAddress?.email) || (ord.user?.role !== 'admin' ? ord.user?.email : '') || ""}
+                            </div>
+                          </td>
+                          <td className="fw-bold text-dark">{formatCurrency(ord.totalAmount)}</td>
+                          <td>
+                            <span className={`badge ${getPaymentStatusBadgeClass(ord.paymentStatus)}`}>
+                              {ord.paymentStatus || 'Pending'}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`badge ${getOrderStatusBadgeClass(ord.orderStatus)}`}>
+                              {ord.orderStatus || 'Confirmed'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-5 text-muted">
+                  <p className="mb-0">No customer orders recorded yet.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Quick Actions Shortcuts */}
-      <div className="card">
-        <div className="card-header">
-          <h3>Quick Management Actions</h3>
-          <p className="card-subtitle">Shortcuts to manage products, users, and storefront</p>
-        </div>
-
-        <div className="quick-actions-list" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "1rem" }}>
-          <Link to="/add-product" className="quick-action-item">
-            <div className="qa-icon icon-indigo">➕</div>
-            <div>
-              <h4>Add New Product</h4>
-              <p>Add new products & auto-calculate stock/price</p>
+        {/* Right Column: Live User Activity Monitoring Feed */}
+        <div className="col-12 col-lg-5">
+          <div className="card border-0 shadow-sm rounded-3 h-100 bg-white">
+            <div className="card-header bg-transparent border-bottom py-3 px-3 d-flex justify-content-between align-items-center">
+              <div>
+                <h5 className="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                  <FaHistory className="text-primary" /> User Activity Monitoring
+                </h5>
+                <small className="text-muted">Live server-generated audit logs</small>
+              </div>
+              <Link to="/admin/activity-logs" className="text-primary text-decoration-none small fw-semibold">
+                Full Log Stream →
+              </Link>
             </div>
-          </Link>
-
-          <Link to="/products" className="quick-action-item">
-            <div className="qa-icon icon-emerald">📦</div>
-            <div>
-              <h4>Manage Products ({stats.products})</h4>
-              <p>Edit, delete, or update inventory stock</p>
+            <div className="card-body p-3">
+              {stats.recentActivities.length > 0 ? (
+                <div className="activity-stream" style={{ maxHeight: "400px", overflowY: "auto" }}>
+                  {stats.recentActivities.map((act) => (
+                    <div key={act._id} className="p-2 border-bottom d-flex align-items-start gap-2 mb-2">
+                      <div className="mt-1">
+                        <span className="badge bg-secondary-subtle text-dark border small">
+                          {act.actionType}
+                        </span>
+                      </div>
+                      <div className="flex-grow-1">
+                        <div className="text-dark small fw-semibold">{act.description}</div>
+                        <div className="text-muted" style={{ fontSize: "0.75rem" }}>
+                          By: <span className="fw-semibold">{act.userName || "System"}</span> •{" "}
+                          {new Date(act.createdAt).toLocaleString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit"
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-5 text-muted">
+                  <FaHistory className="fs-1 mb-2 text-secondary opacity-50" />
+                  <p className="small mb-0">No activity logged yet. System will track logins, orders, and products automatically.</p>
+                </div>
+              )}
             </div>
-          </Link>
-
-          <Link to="/users" className="quick-action-item">
-            <div className="qa-icon icon-amber">👥</div>
-            <div>
-              <h4>Manage Registered Users ({stats.users})</h4>
-              <p>View registered users, change roles or permissions</p>
-            </div>
-          </Link>
-
-          <Link to="/" target="_blank" className="quick-action-item highlight-qa">
-            <div className="qa-icon icon-rose">🌐</div>
-            <div>
-              <h4>Open Main Store</h4>
-              <p>View live customer storefront</p>
-            </div>
-          </Link>
+          </div>
         </div>
       </div>
     </div>

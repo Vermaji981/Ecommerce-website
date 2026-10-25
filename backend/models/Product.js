@@ -115,6 +115,23 @@ const ProductSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
       default: true
+    },
+    status: {
+      type: String,
+      enum: ['Active', 'Out of Stock', 'Draft'],
+      default: 'Active'
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    createdByName: {
+      type: String,
+      default: 'Administrator'
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
     }
   },
   { timestamps: true }
